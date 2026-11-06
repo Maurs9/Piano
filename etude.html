@@ -3252,7 +3252,9 @@ const TONES={ soft:{w:['triangle','sawtooth','sawtooth'],cut:6}, bright:{w:['saw
 function ensureAudio(){
   if(actx && actx.state==='closed'){ actx=null; master=null; }
   if(actx){ if(actx.state==='suspended'||actx.state==='interrupted') actx.resume().catch(()=>{}); preparePiano(); return; }   // 'interrupted': Safari after a call/Siri
-  const AC=window.AudioContext||window.webkitAudioContext; actx=new AC(); if(actx.addEventListener) actx.addEventListener('statechange',audioLockSync);
+  const AC=window.AudioContext||window.webkitAudioContext;
+  try{ actx=new AC({latencyHint:'interactive'}); }catch(_){ actx=new AC(); }
+  if(actx.addEventListener) actx.addEventListener('statechange',audioLockSync);
   master=actx.createGain(); master.gain.value=muted?0:masterVol;
   masterFilter=actx.createBiquadFilter(); masterFilter.type='lowpass'; masterFilter.frequency.value=15500; masterFilter.Q.value=.4;
   comp=actx.createDynamicsCompressor();                       // gentle glue, not pumping
@@ -3307,13 +3309,14 @@ function pianoDecode(key){
 // Resolves true once every sample needed for these notes is decoded (used before scheduled playback).
 function pianoEnsure(midis){
   if(!actx) return Promise.resolve(false);
+  const ctx=actx;
   pianoKeys(); const keys=[...new Set(midis.map(pianoNearest))];
-  return Promise.all(keys.map(pianoDecode)).then(()=>true,err=>{ pianoFail(err); return false; });
+  return Promise.all(keys.map(pianoDecode)).then(()=>true,err=>{ if(ctx===actx&&pianoBank.ctx===ctx) pianoFail(err); return false; });
 }
 function pianoIdleWarm(){
   const ctx=actx, keys=pianoKeys().filter(k=>!pianoBank.buffers.has(k)).sort((a,b)=>Math.abs(a-66)-Math.abs(b-66));
   const step=()=>{ if(ctx!==actx||pianoBank.status==='error') return; const k=keys.shift(); if(k==null) return;
-    pianoDecode(k).then(()=>schedule(),pianoFail); };
+    pianoDecode(k).then(()=>schedule(),err=>{ if(ctx===actx&&pianoBank.ctx===ctx) pianoFail(err); }); };
   const schedule=()=>{ if(window.requestIdleCallback) pianoBank.idle=requestIdleCallback(step,{timeout:4000}); else pianoBank.idle=setTimeout(step,120); };
   schedule();
 }
@@ -3332,10 +3335,10 @@ function preparePiano(){
 function sampledPianoVoice(freq,vel,when,dur,opt={}){
   const ctx=actx, voice={inner:null,released:false,stop(rt){this.released=true;if(this.inner)this.inner.stop(rt);},setBend(){if(this.inner)this.inner.setBend();}};
   const midi=69+12*Math.log2(freq/440), nearest=pianoNearest(midi);
-  const start=buffer=>{
+  const start=(buffer,sampleMidi=nearest)=>{
     if(voice.released||ctx!==actx||ctx.state==='closed') return;
     if(when!=null&&dur!=null&&when+dur<=ctx.currentTime) return;
-    const rate=Math.pow(2,(midi-nearest)/12);
+    const rate=Math.pow(2,(midi-sampleMidi)/12);
     const t=Math.max(ctx.currentTime,when??ctx.currentTime), offset=when==null?0:Math.max(0,t-when)*rate;
     if(offset>=buffer.duration) return;
     const source=ctx.createBufferSource(), gain=ctx.createGain(), filter=ctx.createBiquadFilter();
@@ -3343,8 +3346,9 @@ function sampledPianoVoice(freq,vel,when,dur,opt={}){
     source.buffer=buffer; source.playbackRate.setValueAtTime(rate,t); source.detune.setValueAtTime(bendSemitones*100,t);
     filter.type='lowpass'; filter.Q.value=0.3; filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*0.45,(warm?1700:2800)+(warm?10500:16000)*Math.pow(velocity,1.4)),t);
     gain.gain.value=0; gain.gain.setValueAtTime(0.0001,t); gain.gain.linearRampToValueAtTime(peak,t+(warm?0.008:0.003));
-    source.connect(gain).connect(filter).connect(master); if(lfoGain)lfoGain.connect(source.detune);
-    source.onended=()=>{ source.disconnect(); gain.disconnect(); filter.disconnect(); if(lfoGain){try{lfoGain.disconnect(source.detune);}catch(_){}} };
+    const modulation=lfoGain;
+    source.connect(gain).connect(filter).connect(master); if(modulation) modulation.connect(source.detune);
+    source.onended=()=>{ source.disconnect(); gain.disconnect(); filter.disconnect(); if(modulation){try{modulation.disconnect(source.detune);}catch(_){}} };
     const inner={released:false,stop(rt){
       if(this.released) return; this.released=true; const r=Math.max(ctx.currentTime,rt??ctx.currentTime);
       if(r<=t){try{source.stop(r);}catch(_){} return;}
@@ -3361,7 +3365,15 @@ function sampledPianoVoice(freq,vel,when,dur,opt={}){
   };
   if(pianoBank.ctx!==ctx) preparePiano();
   const ready=pianoBank.ctx===ctx&&pianoBank.buffers.get(nearest);
-  if(ready) start(ready); else pianoDecode(nearest).then(start,pianoFail);
+  if(ready) start(ready);
+  else if(when==null){
+    // Live playing must not wait for MP3 decoding: use a cached recording or the built-in synth for this note.
+    const keys=[...pianoBank.buffers.keys()], fallback=keys.reduce((best,k)=>best==null||Math.abs(k-midi)<Math.abs(best-midi)?k:best,null);
+    if(fallback!=null&&Math.abs(fallback-midi)<=12) start(pianoBank.buffers.get(fallback),fallback);
+    else voice.inner=makePianoVoice(freq,vel);
+    // Decode the preferred recording after scheduling the sound; do not replay a released note.
+    Promise.resolve().then(()=>{ if(ctx===actx) return pianoDecode(nearest); }).catch(err=>{ if(ctx===actx&&pianoBank.ctx===ctx) pianoFail(err); });
+  } else pianoDecode(nearest).then(start,err=>{ if(ctx===actx&&pianoBank.ctx===ctx) pianoFail(err); });
   return voice;
 }
 function makeIR(seconds,decay){ // exponentially decaying, low-passed stereo noise = a convincing small room
@@ -3408,6 +3420,7 @@ function makePianoVoice(freq,vel,when,dur){
   for(let n=1;n<=nPart;n++){
     const fn=freq*n*Math.sqrt(1+B*n*n); if(fn>nyq) break;
     const o=actx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(fn,t); o.detune.setValueAtTime(bendSemitones*100,t);
+    const modulation=lfoGain; if(modulation){ modulation.connect(o.detune); o.addEventListener('ended',()=>{ try{modulation.disconnect(o.detune);}catch(_){} }); }
     const pg=actx.createGain();
     let amp=Math.pow(n,-1.18); if(n===1) amp*=0.92;
     amp*=Math.max(.12,1+(v-0.55)*(n-1)*0.22);                 // harder hit → brighter

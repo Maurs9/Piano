@@ -471,6 +471,152 @@ test('the volume slider is audible even if a backup restored the hidden "muted" 
   await expect.poll(() => page.evaluate(() => master.gain.value)).toBeGreaterThan(0.4);
 });
 
+test('audio requests the browser interactive latency profile', async ({ app, page }) => {
+  await page.addInitScript(() => {
+    const Audio=window.AudioContext || window.webkitAudioContext;
+    window.AudioContext=class extends Audio { constructor(options){ super(options); window.__audioOptions=options; } };
+  });
+  await app.open();
+  expect(await page.evaluate(() => window.__audioOptions)).toEqual({latencyHint:'interactive'});
+});
+
+test('a live note uses a decoded nearby piano sample immediately while its own loads', async ({ app }) => {
+  const page = await app.open();
+  const result = await page.evaluate(async () => {
+    await preparePiano();
+    const prevBuffers=pianoBank.buffers, prevDecode=pianoDecode, prevCreate=actx.createBufferSource;
+    const requested=60, nearby=pianoNearest(72), exact=pianoNearest(requested), buffer=actx.createBuffer(1,actx.sampleRate,actx.sampleRate);
+    let rate, decoded=[];
+    pianoBank.buffers=new Map([[nearby,buffer]]);
+    pianoDecode=k=>{ decoded.push(k); return new Promise(()=>{}); };
+    actx.createBufferSource=function(){ const source=prevCreate.call(this), set=source.playbackRate.setValueAtTime;
+      source.playbackRate.setValueAtTime=function(value,time){ rate=value; return set.call(this,value,time); }; return source; };
+    try {
+      const voice=sampledPianoVoice(midiToFreq(requested),100);
+      const immediate=!!voice.inner;
+      await Promise.resolve();
+      voice.stop();
+      return {immediate, rate, expected:Math.pow(2,(requested-nearby)/12), decoded, exact};
+    } finally { pianoBank.buffers=prevBuffers; pianoDecode=prevDecode; actx.createBufferSource=prevCreate; }
+  });
+  expect(result.immediate).toBe(true);
+  expect(result.rate).toBeCloseTo(result.expected, 5);
+  expect(result.decoded).toContain(result.exact);
+});
+
+test('a cold live note starts a temporary synth immediately and releases normally', async ({ app }) => {
+  const page = await app.open();
+  const result = await page.evaluate(async () => {
+    await preparePiano();
+    const prevBuffers=pianoBank.buffers, prevDecode=pianoDecode, prevSynth=makePianoVoice;
+    let starts=0, stops=0, decodes=0;
+    pianoBank.buffers=new Map();
+    pianoDecode=()=>{ decodes++; return new Promise(()=>{}); };
+    makePianoVoice=()=>{ starts++; return {stop(){stops++;},setBend(){}}; };
+    try {
+      const voice=sampledPianoVoice(midiToFreq(60),100);
+      const immediate=starts;
+      voice.stop();
+      await Promise.resolve();
+      return {immediate,stops,decodes};
+    } finally { pianoBank.buffers=prevBuffers; pianoDecode=prevDecode; makePianoVoice=prevSynth; }
+  });
+  expect(result).toEqual({immediate:1,stops:1,decodes:1});
+});
+
+for (const source of ['midi', 'ble']) {
+  test(`${source}: a cold note starts synchronously, releases and does not replay after decoding`, async ({ app }) => {
+    const page=await app.open();
+    const result=await page.evaluate(async source => {
+      await preparePiano();
+      const oldBuffers=pianoBank.buffers, oldDecode=pianoDecode, oldSynth=makePianoVoice;
+      let starts=0,stops=0,resolveDecode;
+      pianoBank.buffers=new Map();
+      pianoDecode=()=>new Promise(resolve=>{ resolveDecode=resolve; });
+      makePianoVoice=()=>{ starts++; return {stop(){stops++;},setBend(){}}; };
+      try {
+        midiIn(0x90,60,100,source);
+        const immediate=starts;
+        midiIn(0x90,60,0,source); // velocity-zero note-on is note-off
+        await Promise.resolve();
+        resolveDecode(actx.createBuffer(1,128,actx.sampleRate));
+        await new Promise(resolve=>setTimeout(resolve,0));
+        return {immediate,starts,stops,held:held.has(60),voice:liveVoices.has(60)};
+      } finally { pianoBank.buffers=oldBuffers; pianoDecode=oldDecode; makePianoVoice=oldSynth; }
+    },source);
+    expect(result).toEqual({immediate:1,starts:1,stops:1,held:false,voice:false});
+  });
+}
+
+test('scheduled piano playback does not substitute a live fallback when its sample is missing', async ({ app }) => {
+  const page=await app.open();
+  const result=await page.evaluate(async () => {
+    await preparePiano();
+    const oldBuffers=pianoBank.buffers, oldDecode=pianoDecode, oldSynth=makePianoVoice;
+    let synths=0, resolveDecode;
+    pianoBank.buffers=new Map();
+    pianoDecode=()=>new Promise(resolve=>{ resolveDecode=resolve; });
+    makePianoVoice=()=>{ synths++; return {stop(){},setBend(){}}; };
+    try {
+      const voice=sampledPianoVoice(midiToFreq(60),100,actx.currentTime+1,0.3);
+      const before=!!voice.inner;
+      voice.stop();
+      resolveDecode(actx.createBuffer(1,128,actx.sampleRate));
+      await new Promise(resolve=>setTimeout(resolve,0));
+      return {before,after:!!voice.inner,synths};
+    } finally { pianoBank.buffers=oldBuffers; pianoDecode=oldDecode; makePianoVoice=oldSynth; }
+  });
+  expect(result).toEqual({before:false,after:false,synths:0});
+});
+
+test('a distant cached sample uses the synth rather than extreme pitch-shifting', async ({ app }) => {
+  const page=await app.open();
+  const result=await page.evaluate(async () => {
+    await preparePiano();
+    const oldBuffers=pianoBank.buffers, oldDecode=pianoDecode, oldSynth=makePianoVoice;
+    let starts=0;
+    pianoBank.buffers=new Map([[48,actx.createBuffer(1,128,actx.sampleRate)]]);
+    pianoDecode=()=>new Promise(()=>{});
+    makePianoVoice=()=>{ starts++; return {stop(){},setBend(){}}; };
+    try { const voice=sampledPianoVoice(midiToFreq(108),100); voice.stop(); return starts; }
+    finally { pianoBank.buffers=oldBuffers; pianoDecode=oldDecode; makePianoVoice=oldSynth; }
+  });
+  expect(result).toBe(1);
+});
+
+test('a stale live decode error cannot mark a replacement audio context as failed', async ({ app }) => {
+  const page=await app.open();
+  const result=await page.evaluate(async () => {
+    await preparePiano();
+    const oldCtx=actx, oldBankCtx=pianoBank.ctx, oldBuffers=pianoBank.buffers, oldStatus=pianoBank.status, oldDecode=pianoDecode, oldSynth=makePianoVoice;
+    let fail;
+    pianoBank.buffers=new Map();
+    pianoDecode=()=>new Promise((_,reject)=>{ fail=reject; });
+    makePianoVoice=()=>({stop(){},setBend(){}});
+    try {
+      const voice=sampledPianoVoice(midiToFreq(60),100);
+      await Promise.resolve();
+      actx={state:'running'}; pianoBank.ctx=actx; pianoBank.status='ready';
+      fail(new Error('old context decode failed'));
+      await new Promise(resolve=>setTimeout(resolve,0));
+      voice.stop(); return pianoBank.status;
+    } finally { actx=oldCtx; pianoBank.ctx=oldBankCtx; pianoBank.buffers=oldBuffers; pianoBank.status=oldStatus; pianoDecode=oldDecode; makePianoVoice=oldSynth; }
+  });
+  expect(result).toBe('ready');
+});
+
+test('synthesized piano notes connect modulation to each pitched oscillator', async ({ app }) => {
+  const page=await app.open();
+  const result=await page.evaluate(() => {
+    const original=lfoGain.connect; let connections=0;
+    lfoGain.connect=function(...args){ connections++; return original.apply(this,args); };
+    try { const voice=makePianoVoice(midiToFreq(60),100); const count=voice.oscs.length; voice.stop(); return {connections,count}; }
+    finally { lfoGain.connect=original; }
+  });
+  expect(result.count).toBeGreaterThan(0);
+  expect(result.connections).toBe(result.count);
+});
+
 test('an interrupted audio context is resumed before playback', async ({ app }) => {
   const page = await app.open();
   const resumeCalls = await page.evaluate(async () => {
