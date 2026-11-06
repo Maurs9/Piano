@@ -9,7 +9,7 @@
 
 **Tech Stack:** HTML/CSS/JavaScript în `etude.html`, SVG existent, Web Audio, inputurile existente (MIDI, BLE MIDI, tastatură, pointer), Playwright. Pentru înregistrarea eligibilă folosim `localStorage` coordonat exclusiv între taburi prin Web Locks (`navigator.locks`) și notificări prin evenimentul `storage`; lipsa capabilităților nu blochează practica.
 
-**Status:** Specificație de implementare revizuită (v3.1). Pragurile și curriculumul de mai jos sunt decizii inițiale de produs, aliniate cu evaluatorul ritmic existent (`rdRhGradeHand`), nu rezultate validate pedagogic.
+**Status:** Specificație de implementare revizuită (v3.2). Pragurile și curriculumul de mai jos sunt decizii inițiale de produs, aliniate cu evaluatorul ritmic existent (`rdRhGradeHand`), nu rezultate validate pedagogic.
 
 **Data:** 6 noiembrie 2026.
 
@@ -18,7 +18,7 @@
 **Documente anterioare:**
 - `docs/plans/2026-11-06-sight-reading-research-and-plan.md` (v1 — istoric al cercetării)
 - `docs/plans/2026-11-06-sight-reading-improved-plan.md` (v2 — specificație intermediară)
-Documentul de față (v3) combină regulile stricte de concurență, proprietate pe tab și recuperare din v2 cu precizia de integrare în codul existent din `etude.html` (pipeline-ul `onInputChange`, alinierea cu `rdRhGradeHand`, fingerprint-ul sincron FNV-1a 64-bit cu vectori verificați și maparea UI compactă).
+Documentul de față (v3) combină regulile stricte de concurență, ordinea celor două lock-uri, starea `pendingSave`, proprietatea pe tab și recuperarea din v2 cu precizia de integrare în codul existent din `etude.html` (pipeline-ul `onInputChange`, alinierea cu `rdRhGradeHand`, fingerprint-ul sincron FNV-1a 64-bit cu vectori verificați și maparea UI compactă).
 
 ---
 
@@ -76,8 +76,8 @@ Referințele sunt simboluri la commitul de mai sus; numerele de linie sunt orien
 **MVP — obligatoriu înainte de extindere**
 1. Scor corect (`srtEvaluate`), recorder conectat la `on`/`off` și model în ticks cu contract stabil.
 2. Generator determinist P1–P2, o singură mână la alegere, 4/4 și 3/4, pauze simple.
-3. Flux complet: pregătire, claim coordonat între taburi, preview (20 s), count-in, execuție fără colorare prematură, rezultat explicabil.
-4. Registru local (`etude-sight-v1`) al expunerilor și încercărilor, cu proprietar pe tab (`ownerTabId`), protecție la reset (`generation`), recuperare a rezervărilor orfane și sincronizare prin Web Locks.
+3. Flux complet: pregătire, claim coordonat între taburi, preview (20 s), count-in, execuție fără colorare prematură, rezultat explicabil (inclusiv starea `pendingSave` dacă stocarea eșuează la final).
+4. Registru local (`etude-sight-v1`) al expunerilor și încercărilor, cu proprietar pe tab (`ownerTabId`), protocol explicit al celor două lock-uri Web Locks, protecție la reset (`generation`) și recuperare a rezervărilor orfane.
 5. Interfață și teste pentru limbile suportate de baza de integrare, mobil (320 px) și offline.
 
 **V2 — practică mai utilă**
@@ -101,7 +101,7 @@ Fluxul propus (funcțiile de model, fingerprint și evaluare sunt **sincrone și
 ```text
 profil + seed → srtGenerate → srtValidatePiece → srtFingerprint (sincron)
                                                        ↓
-                                      srtLedgerUpdate(claimExposure) [Web Lock]
+                             attempt lock → srtLedgerUpdate(claimExposure) [scurt]
                                                        ↓
 preview (20s) → count-in → recorder (on/off) → srtEvaluate → srtLedgerUpdate(finishAttempt)
                                  ↓                                       ↓
@@ -320,31 +320,42 @@ Exemplele presupun patru note așteptate (`N = 4`); asocierile enumerate sunt î
 ### 6.1. Stări
 
 ```text
-idle → preparing → claiming → preview → countIn → playing → completed
-                        ↓         ↓         ↓          ↓
-                     blocked   abandoned  abandoned  interrupted
+idle → preparing → claiming → preview → countIn → playing → completed (saved)
+                        ↓         ↓         ↓          ↓         ↓
+                     blocked   abandoned  abandoned  interrupted pendingSave → saved / abandoned
 ```
 
 - `preparing`: generare, validare, calcul fingerprint sincron, pregătire audio și verificare input; partitura nu este încă vizibilă.
-- `claiming`: sub blocarea exclusivă Web Locks (`etude-sight-ledger-v1`), verificăm dacă `fingerprint` a mai fost expus; dacă nu, persistăm rezervarea expunerii cu `{ attemptId, ownerTabId, generation, fingerprint }` și menținem un lock de sesiune pe încercare (`etude-sight-attempt-<attemptId>`) pe toată durata încercării active. Dacă a fost deja expus (sau coordonarea este indisponibilă), intrăm în `blocked` / oferim direct modul `practice` cu explicație clară.
-- `preview`: abia după salvarea rezervării afișăm partitura și pornim cronometrul de 20 s. La sfârșitul celor 20 s (sau la apăsarea „Pornește acum”) se trece automat în `countIn`. Utilizatorul poate apăsa „Treci în practică”, ceea ce marchează încercarea ca `abandoned` și comută în „Practică în tempo”.
+- `claiming`: tabul dobândește **întâi** lock-ul de sesiune al încercării (`etude-sight-attempt-<attemptId>`) și, în timp ce acesta este activ, dobândește **scurt** blocarea exclusivă a registrului (`etude-sight-ledger-v1`) pentru a verifica eligibilitatea și a persista rezervarea `{ attemptId, ownerTabId, generation, fingerprint }`. Blocarea registrului este eliberată imediat după scrierea în `localStorage`, **înainte** de intrarea în `preview`. Dacă `fingerprint` a fost deja expus (sau coordonarea este indisponibilă), eliberăm și lock-ul încercării și intrăm în `blocked` / modul `practice`.
+- `preview`: abia după salvarea rezervării și eliberarea lock-ului registrului afișăm partitura și pornim cronometrul de 20 s (păstrând activ doar lock-ul încercării `etude-sight-attempt-<attemptId>`). La sfârșitul celor 20 s (sau la apăsarea „Pornește acum”) se trece automat în `countIn`. Utilizatorul poate apăsa „Treci în practică”, ceea ce marchează încercarea ca `abandoned`, eliberează lock-ul încercării și comută în „Practică în tempo”.
 - `countIn`: o măsură de metronom; configurația (BPM, mână, ajutoare) este înghețată.
 - `playing`: recorder activ în fereastra `[-250 ms, T + 250 ms]`; pe portativ se mișcă doar cursorul.
-- `completed`: tranziția din `playing` spre `completed` are loc **numai după bariera `T + 250 ms`**. Evaluatorul produce rezultatul, colorăm notele pe portativ și salvăm rezultatul în `etude-sight-v1` verificând `generation` și `ownerTabId`.
-- `abandoned` / `interrupted`: fără scor de primă vedere și fără strike (în V3); conținutul rămâne marcat ca expus și poate fi exersat imediat în practică.
+- `completed`: tranziția din `playing` spre `completed` are loc **numai după bariera `T + 250 ms`**. Evaluatorul produce și îngheață rezultatul calculat, colorăm notele pe portativ și apelăm `finishAttempt` sub `etude-sight-ledger-v1` (verificând `generation` și `ownerTabId`). Dacă salvarea reușește, eliberăm lock-ul încercării `etude-sight-attempt-<attemptId>`.
+- `pendingSave`: dacă salvarea rezultatului la `completed` eșuează (de ex. `QuotaExceededError`), rezultatul calculat rămâne înghețat și afișat pe ecran, iar **lock-ul încercării `etude-sight-attempt-<attemptId>` rămâne deținut** cât timp pagina permite reîncercarea salvării („Reîncearcă salvarea”) sau renunțarea explicită („Continuă fără salvare”). Astfel, un alt tab nu poate considera rezervarea orfană și nu o poate marca `abandoned` cât timp utilizatorul încearcă să salveze rezultatul. Lock-ul încercării se eliberează doar după reușita salvării, după renunțarea explicită (care încearcă marcarea `abandoned`) sau la închiderea paginii.
+- `abandoned` / `interrupted`: fără scor de primă vedere și fără strike (în V3); conținutul rămâne marcat ca expus, lock-ul încercării este eliberat, iar piesa poate fi exersată imediat în practică.
 
-### 6.2. Momentul eligibilității, proprietarul rezervării și recuperarea
+### 6.2. Ordinea lock-urilor, proprietarul rezervării și recuperarea
 
 Verificăm dacă fingerprint-ul exista **înaintea claim-ului**, nu după preview. Preview-ul autorizat nu își invalidează propria încercare (`attemptId`).
 
 O rezervare are `{ attemptId, ownerTabId, generation, fingerprint }`. După rezervare, alt tab poate deschide același conținut doar ca practică. Eligibilitatea este legată de tupla `(attemptId, ownerTabId, generation)`, nu o proprietate booleană globală recalculată la redraw.
 
-Reguli obligatorii:
-- **O citire din alt tab nu abandonează o încercare activă:** Când Tabul A are o încercare în curs (`preview`, `countIn`, `playing`), el ține lock-ul Web Locks `etude-sight-attempt-<attemptId>`. Dacă Tabul B se deschide sau citește registrul, Tabul B poate verifica neintruziv (`navigator.locks.request('etude-sight-attempt-' + attemptId, { ifAvailable: true }, lock => Boolean(lock))`) dacă încercarea este orfană. Cât timp Tabul A este viu și ține lock-ul încercării, Tabul B **nu** marchează încercarea lui A ca `abandoned`. Numai dacă lock-ul încercării este liber (adică Tabul A a dat refresh sau s-a închis înainte de `completed`), rezervarea rămasă fără rezultat terminal este marcată conservator ca `abandoned` sub blocarea registrului.
-- Orice afișare a unei partituri din noul sistem în afara preview-ului autorizat înregistrează mai întâi `recordExposure(fingerprint, reason)`, sub aceeași blocare `etude-sight-ledger-v1` ca rezervarea. Operația este idempotentă.
+**Protocolul exact al celor două lock-uri (evitarea ferestrei de orfan fals și a blocării registrului):**
+1. **Ordinea la rezervare (`claiming`):**
+   - Pasul 1: Generează `attemptId` și dobândește `navigator.locks.request('etude-sight-attempt-' + attemptId, { mode: 'exclusive' }, () => attemptLeasePromise)`. Acest lock rămâne deținut prin promisiunea `attemptLeasePromise` pe toată durata sesiunii (`claiming` → `preview` → `countIn` → `playing` → `completed` / `pendingSave`), dar **nu** înfășoară lock-ul registrului pe durata sesiunii.
+   - Pasul 2: După ce callback-ul lui `etude-sight-attempt-<attemptId>` a pornit (deci lock-ul încercării este garantat activ), apelează `srtLedgerUpdate({ type: 'claimExposure', ... })`, care dobândește exclusiv `etude-sight-ledger-v1` doar pentru câteva milisecunde (citire → validare → scriere în `localStorage`), apoi returnează și **eliberează imediat `etude-sight-ledger-v1`** înainte de `preview`.
+   - Dacă `claimExposure` este respins (conținut deja expus), rezolvăm imediat `attemptLeasePromise` pentru a elibera `etude-sight-attempt-<attemptId>`.
+2. **Ordinea la recuperare (`recoverOrphanClaims`):**
+   - Sub blocarea exclusivă `etude-sight-ledger-v1`, citim registrul curent, verificăm `generation` și identificăm rezervările fără rezultat terminal în `attempts`.
+   - Pentru fiecare astfel de rezervare, testăm neblocant `navigator.locks.request('etude-sight-attempt-' + attemptId, { ifAvailable: true }, lock => Boolean(lock))`. Deoarece cererea are `ifAvailable: true`, ea nu așteaptă niciodată și nu poate produce deadlock.
+   - Dacă `lock` este `null` (adică un tab proprietar activ ține încă `etude-sight-attempt-<attemptId>` în `preview`, `countIn`, `playing` sau `pendingSave`), rezervarea este **activă** și nu este atinsă.
+   - Numai dacă `lock` este obținut (tabul proprietar s-a închis sau a dat refresh) și starea din registru este încă neterminată în aceeași `generation`, marcăm încercarea drept `abandoned` și salvăm registrul înainte de eliberarea `etude-sight-ledger-v1`.
+
+Reguli obligatorii suplimentare:
+- Orice afișare a unei partituri din noul sistem în afara preview-ului autorizat înregistrează mai întâi `recordExposure(fingerprint, reason)`, sub aceeași blocare scurtă `etude-sight-ledger-v1` ca rezervarea. Operația este idempotentă.
 - Dacă expunerea nu poate fi persistată (eroare de stocare sau lipsa Web Locks), practica poate continua cu avertisment, dar dezactivăm eligibilitatea de primă vedere în tabul curent.
 - MVP permite „Prima încercare” numai pe conținut generat de noul protocol (`srtGenerate`). Piesele fixe din `PIECES` rămân în practică.
-- `Listen` înainte de claim înregistrează expunere și permite numai practică ulterior. `Listen`, indicii sau reluare în timpul primei încercări încheie eligibilitatea (`abandoned`) și cer trecere explicită la practică.
+- `Listen` înainte de claim înregistrează expunere și permite numai practică ulterior. `Listen`, indicii sau reluare în timpul primei încercări încheie eligibilitatea (`abandoned`), eliberează lock-ul încercării și cer trecere explicită la practică.
 - Schimbarea limbii, temei sau dimensiunii ferestrei nu invalidează execuția și nu resetează recorderul.
 - Durata efectivă de preview (`previewDurationMs`, <= 20000 ms) este salvată în rezultat când utilizatorul apasă „Pornește acum”.
 
@@ -393,14 +404,14 @@ Operații distincte: `claimExposure`, `recordExposure`, `recordListen`, `finishA
 
 **Fără Web Locks sau stocare disponibilă:** practica funcționează normal; nu promitem prima încercare coordonată între taburi și dezactivăm modul „Prima încercare” cu o explicație clară în UI.
 
-### 7.3. Creșterea datelor și eșecuri
+### 7.3. Creșterea datelor, `pendingSave` și eșecuri
 
 - Păstrăm cel mult ultimele **500 de rezultate detaliate** în `attempts`, ordonate determinist după `(finishedAt, attemptId)`.
 - Expunerile (`exposures`) nu se șterg odată cu trunchierea `attempts`, pentru ca exercițiile vechi să nu redevină fals „noi”.
 - Limita pentru `exposures` în MVP este **4096 de identități**. La atingerea ei, practica rămâne disponibilă, dar o nouă primă încercare este oprită până la o decizie explicită de arhivare sau resetare. Nu eliminăm în tăcere identități.
-- La `QuotaExceededError` sau eroare de scriere înainte de preview nu afișăm conținutul ca încercare eligibilă; oferim practică.
-- Dacă salvarea rezultatului la `completed` eșuează, afișăm „rezultat nesalvat”; claim-ul rămâne consumat, iar o reîncercare de salvare în aceeași generație păstrează același `attemptId`.
-- Un `resetLedger` generează un `generation` nou sub blocarea exclusivă. Orice încercare pornită înaintea resetului va eșua la `finishAttempt` datorită verificării `operation.generation === ledger.generation`.
+- La `QuotaExceededError` sau eroare de scriere înainte de preview nu afișăm conținutul ca încercare eligibilă; eliberăm imediat lock-ul încercării și oferim practică.
+- **Starea `pendingSave` la eșecul salvării după execuție:** Dacă salvarea rezultatului la `completed` eșuează (`QuotaExceededError`), sesiunea intră în `pendingSave`: rezultatul calculat rămâne înghețat pe ecran cu mesajul „rezultat nesalvat”, iar **lock-ul încercării (`etude-sight-attempt-<attemptId>`) rămâne deținut** cât timp pagina permite reîncercarea salvării (cu același `attemptId`, `ownerTabId` și `generation`). Astfel, un alt tab care rulează `recoverOrphanClaims` vede lock-ul ocupat și **nu** marchează rezervarea drept `abandoned`. Lock-ul încercării este eliberat doar după ce reîncercarea salvării reușește, utilizatorul renunță explicit la salvare sau pagina se închide.
+- Un `resetLedger` generează un `generation` nou sub blocarea exclusivă. Orice încercare pornită înaintea resetului (inclusiv una aflată în `pendingSave`) va fi respinsă la `finishAttempt` cu `reason: 'stale_generation'` datorită verificării `operation.generation === ledger.generation`.
 - Dacă în `etude-sight-v1` este găsită o `schemaVersion > 1` (scrisă de o versiune viitoare), nu o înlocuim automat cu `{}`; păstrăm datele intacte, oferim export și menținem doar practica.
 
 ### 7.4. Backup și migrare
@@ -501,11 +512,13 @@ Contract: `startBar` și `endBar` sunt indecși de măsură de la `1`, inclusivi
 ## 11. Interfață, localizare și accesibilitate
 
 - În MVP, panoul de rezultat din `#rd-verdict` / sumarul execuției explică separat:
-  - **Înălțimi (Pitch F1):** note atinse / așteptate (`TP / N`) și note suplimentare (`FP`),
-  - **Ritm (Rhythm Acc):** atacuri la timp (`G`), apropiate (`Q`), întârziate/grăbite (`lateOrEarly`) și tendința medie (`meanOffsetMs` — ex. „în medie +18 ms mai târziu”),
-  - **Statutul încercării:** badge clar „Prima vedere” vs „Practică în tempo”.
+  - **Scor înălțimi (F1):** procentul `Math.round(pitchF1)`%,
+  - **Note atinse (Recall):** `TP / N`,
+  - **Atacuri suplimentare:** `FP`,
+  - **Ritm (Rhythm Acc):** procentul `Math.round(rhythmAcc)`%, atacuri la timp (`G`), apropiate (`Q`), întârziate/grăbite (`lateOrEarly`) și tendința medie (`meanOffsetMs` — ex. „în medie +18 ms mai târziu”),
+  - **Statutul încercării:** badge clar „Prima vedere” vs „Practică în tempo” (sau „Rezultat nesalvat” în starea `pendingSave`).
 - Informația pe portativ și în sumar nu se transmite numai prin culoare: fiecare stare are etichetă textuală/simbol (`✓`, `≈`, `✗`, `+`) și tooltip SVG (`<title>`), similar cu `rdRhNoteTip`.
-- Anunțurile `aria-live` se emit doar la schimbarea stării sesiunii (`preview`, `countIn`, `playing`, `completed`), niciodată pe fiecare frame de animație a cursorului.
+- Anunțurile `aria-live` se emit doar la schimbarea stării sesiunii (`preview`, `countIn`, `playing`, `completed`, `pendingSave`), niciodată pe fiecare frame de animație a cursorului.
 - Controalele `Start` / `Pornește acum`, `Treci în practică` și `Stop` rămân vizibile fără scroll orizontal la **320 px** lățime și în landscape scund.
 - `prefers-reduced-motion` este respectat.
 - Redimensionarea ferestrei și schimbarea limbii (`ro` / `en` etc.) sau a temei (`light` / `dark`) în timpul `preview` sau `completed` nu pierd recorderul, nu regenerează piesa și nu invalidează încercarea.
@@ -556,10 +569,10 @@ Numele testelor noi încep cu `[srt:<categorie>]`, iar în CLI se filtrează cu 
 | **M3** | `etude.html`; creare `tests/sight-reading-recorder.spec.mjs` | Extinderea `onInputChange(kind, midi, source, releaseKind)` pentru a propaga `on` și `off` către recorderul `SR`; ignorarea clapelor ținute înainte de `-250 ms`; captură în `[-250 ms, T + 250 ms]`; excluderea sunetelor generate de aplicație (`srClick`, `previewNote`, `srListen`, `srPlayGap`); tratarea `releaseFocusInput` și `panic`. | `srt:recorder` |
 | **M4** | `etude.html`; `tests/sight-reading-score.spec.mjs`; `tests/app.spec.mjs` | Integrarea `srtEvaluate` în modul în tempo (`assess`): oprirea colorării greedy din timpul `playing`, bariera de finalizare la `T + 250 ms`, colorarea notelor pe portativ la `completed`, separarea de `data.sheet[id].best`. Regresie: apăsarea tuturor clapelor (keyboard-mashing) nu mai produce 100% sau 3 stele. | `srt:integration` |
 | **M5** | `etude.html`; creare `tests/sight-reading-generator.spec.mjs` | Generatorul determinist `srtGenerate(profile, seed)` pentru `P1.a`–`P2.c`, ambele mâini (`rh`, `lh`), PRNG Mulberry32 fără `Math.random()`, cadența finală în 4/4 și 3/4 exclusiv din duratele permise (`[480, 960]`), verificarea invariantelor pe seed-urile `0..999` și respingerea profilurilor imposibile. | `srt:generator` |
-| **M6** | `etude.html`; creare `tests/sight-reading-ledger.spec.mjs` | Registrul `etude-sight-v1` coordonat prin Web Locks (`etude-sight-ledger-v1` + lock de sesiune `etude-sight-attempt-<id>`): `claimExposure` atomic între două taburi concurente, protecția unei încercări active la citirea din alt tab, recuperarea doar a rezervărilor orfane, respingerea `finishAttempt` cu `generation` veche după un reset în alt tab, idempotență, limitele 500/4096 și fallback explicit la practică fără Web Locks. | `srt:ledger` |
-| **M7** | `etude.html`; creare `tests/sight-reading-flow.spec.mjs` | Mașina de stări `srtTransition` și integrarea în UI (`rdSightStart`, `rdGenMelody`, `#rd-mode`): `preparing → claiming → preview (20 s) → countIn → playing → completed`, butonul „Pornește acum”, butonul „Treci în practică”, invalidarea eligibilității la `Listen` / refresh / pierdere vizibilitate, re-rularea aceleiași piese ca „Practică în tempo”. | `srt:flow` |
+| **M6** | `etude.html`; creare `tests/sight-reading-ledger.spec.mjs` | Registrul `etude-sight-v1` coordonat prin Web Locks: achiziția `etude-sight-attempt-<id>` **înainte** de publicarea rezervării sub blocarea scurtă `etude-sight-ledger-v1` (eliberată înainte de `preview`), `claimExposure` atomic între două taburi concurente, protecția unei încercări active (inclusiv în `pendingSave`) la citirea/recuperarea din alt tab, recuperarea doar a rezervărilor orfane cu reverificarea `generation` sub lock, respingerea `finishAttempt` cu `generation` veche după un reset în alt tab, idempotență, limitele 500/4096 și fallback explicit la practică fără Web Locks. | `srt:ledger` |
+| **M7** | `etude.html`; creare `tests/sight-reading-flow.spec.mjs` | Mașina de stări `srtTransition` și integrarea în UI (`rdSightStart`, `rdGenMelody`, `#rd-mode`): `preparing → claiming → preview (20 s) → countIn → playing → completed / pendingSave`, butonul „Pornește acum”, butonul „Treci în practică”, reîncercarea salvării din `pendingSave` cu păstrarea lock-ului încercării, invalidarea eligibilității la `Listen` / refresh / pierdere vizibilitate, re-rularea aceleiași piese ca „Practică în tempo”. | `srt:flow` |
 | **M8** | `etude.html`; `tests/sight-reading-ledger.spec.mjs` | Export/import backup cu câmpul opțional `sightLedger`: compatibilitate cu backup-uri `v:3` fără `sightLedger`, păstrarea `generation`-ului curent și a rezervărilor active locale, transformarea claim-urilor importate în `abandoned`, reuniunea expunerilor și încercărilor, respingerea conflictelor de conținut pe același `attemptId`, protecția la `schemaVersion` viitoare. | `srt:backup` |
-| **M9** | `etude.html`; creare `tests/sight-reading-ui.spec.mjs` | Sumarul explicabil al rezultatului (Pitch F1, Rhythm Acc, extra, offset mediu, badge Primă vedere vs Practică), simboluri non-culoare + tooltips pe note, responsivitate la 320 px și landscape, păstrarea stării la schimbarea limbii/temei. | `srt:ui` |
+| **M9** | `etude.html`; creare `tests/sight-reading-ui.spec.mjs` | Sumarul explicabil al rezultatului (Scor înălțimi F1 %, Note atinse `TP / N`, Atacuri suplimentare `FP`, Rhythm Acc %, offset mediu, badge Primă vedere vs Practică), simboluri non-culoare + tooltips pe note, responsivitate la 320 px și landscape, păstrarea stării la schimbarea limbii/temei. | `srt:ui` |
 | **M10** | `tests/sight-reading-ui.spec.mjs`; `sw.js` (numai dacă e necesar) | Funcționare offline după prima încărcare, suita completă de regresie Playwright și verificare end-to-end. | `srt:offline` + suita completă |
 
 Exemplu de rulare țintită:
@@ -608,8 +621,8 @@ test('[srt:score] silence on a non-empty score is zero', async ({ app, page }) =
 | **Recorder (`srt:recorder`)** | Propagarea `on` și `off` cu `source` și `releaseKind`, clapă ținută dinainte de `-250 ms` vs atac la `-100 ms`, captură până la `T + 250 ms`, excluderea `srClick` / `previewNote` / `srListen`, pierderea focusului (`releaseFocusInput`) |
 | **Generator (`srt:generator`)** | Toate profilurile `P1.a`–`P2.c`, ambele mâini (`rh`, `lh`), seed-urile `0..999`, absența pauzei pe primul timp din măsura 1, cadența pe tonică în 4/4 și 3/4 exclusiv din duratele permise (`[480, 960]`), respingerea unui profil invalid |
 | **Prima vedere (`srt:flow`)** | Preview 20 s valid, „Pornește acum”, „Treci în practică”, expunere anterioară în `learn`/`practice`, apăsare `Listen`, refresh în timpul preview/execuție, schimbare BPM pe același conținut |
-| **Stocare, Concurență & Backup (`srt:ledger`, `srt:backup`)** | Două taburi cu claim simultan pe același fingerprint, citire în Tab B fără abandonarea încercării active din Tab A, reset în Tab B urmat de `finishAttempt` respins (`stale_generation`) în Tab A, idempotență la salvare, limita de 500 `attempts` și 4096 `exposures`, backup `v:3` vechi fără `sightLedger`, conflict de `attemptId` la import, claim importat transformat în `abandoned`, `QuotaExceededError` |
-| **UI & Accesibilitate (`srt:ui`)** | Română și engleză, light/dark, viewports `320 px`, `390 px`, `1024 px`, `1920 px` și landscape scund, simboluri non-culoare pe note, `prefers-reduced-motion` |
+| **Stocare, Concurență & Backup (`srt:ledger`, `srt:backup`)** | Ordinea lock-urilor (`attempt-lock` înainte de `ledger-lock` scurt), două taburi cu claim simultan pe același fingerprint, citire/recuperare în Tab B fără abandonarea încercării active sau aflate în `pendingSave` din Tab A, reset în Tab B urmat de `finishAttempt` respins (`stale_generation`) în Tab A, idempotență la salvare, limita de 500 `attempts` și 4096 `exposures`, backup `v:3` vechi fără `sightLedger`, conflict de `attemptId` la import, claim importat transformat în `abandoned`, `QuotaExceededError` |
+| **UI & Accesibilitate (`srt:ui`)** | Afișare separată pentru Scor înălțimi F1 %, Note atinse (`TP / N`) și Atacuri suplimentare (`FP`); română și engleză, light/dark, viewports `320 px`, `390 px`, `1024 px`, `1920 px` și landscape scund, simboluri non-culoare pe note, `prefers-reduced-motion` |
 | **Offline (`srt:offline`)** | Încărcare offline după vizită online pe aceeași origine; fingerprint și evaluare 100% funcționale fără conexiune sau context HTTPS |
 
 ### 13.2. Comenzi de verificare
@@ -634,13 +647,16 @@ PW_CHANNEL= npm test -- --workers=4
 
 ---
 
-## 15. Rezumatul arhitecturii v3.1 (Sinteza v2 + v3)
+## 15. Rezumatul arhitecturii v3.2 (Sinteza finală)
 
 1. **Fingerprint sincron și complet specificat (`srtFingerprint` — §3.2):** FNV-1a pe 64 de biți (`BigInt`, `offset_basis = 0xcbf29ce484222325n`, `prime = 0x100000001b3n`) peste octeții UTF-8 ai serializării canonice `srtCanonicalString(piece)`, cu vectori de test verificați cu Node.js (`v1:e8020957ec2a1005` și `v1:8472a9986749aba1`), funcționând inclusiv pe HTTP în LAN la testarea pe mobil.
-2. **Concurență multi-tab, proprietate și protecție la reset (§6.2, §7.2):** Funcțiile de model și evaluare rămân 100% sincrone și pure, în timp ce mutațiile registrului (`srtLedgerUpdate`) sunt serializate prin Web Locks (`etude-sight-ledger-v1`). Fiecare încercare activă ține lock-ul `etude-sight-attempt-<attemptId>` (astfel încât citirea din alt tab nu o abandonează), iar orice scriere verifică `operation.generation === ledger.generation` pentru ca o încercare începută înainte de reset să nu poată polua generația nouă.
+2. **Protocolul exact al celor două lock-uri și starea `pendingSave` (§6.1–6.2, §7.2–7.3):**
+   - La `claiming`, tabul dobândește întâi `etude-sight-attempt-<attemptId>` (ținut pe durata sesiunii prin promisiune) și în interiorul lui dobândește **scurt** `etude-sight-ledger-v1` pentru a publica rezervarea, eliberând `etude-sight-ledger-v1` înainte de `preview`.
+   - Dacă salvarea rezultatului la `completed` eșuează (`QuotaExceededError`), sesiunea intră în `pendingSave` cu rezultatul înghețat și **păstrează `etude-sight-attempt-<attemptId>`** cât timp utilizatorul poate reîncerca salvarea, prevenind abandonarea falsă din alt tab.
+   - Orice scriere verifică `operation.generation === ledger.generation` sub `etude-sight-ledger-v1`.
 3. **Cablarea explicită a pipeline-ului de input în M3 (§4.1):** Extinderea `onInputChange(kind, midi, source, releaseKind)` și integrarea cu `handleNoteOn`, `handleNoteOff`, `releaseFocusInput` și `panic`, plus alinierea cu pragurile (`100 ms` / `180 ms`) din `rdRhGradeHand`.
 4. **Cadență în 3/4 și 4/4 fără contradicții de durată (§8):** Măsura finală folosește exclusiv duratele permise de tabelul profilului (`480` și `960` ticks), eliminând doima punctată din MVP.
-5. **Mapare UX compactă în `#rd-mode` și feedback vizual după `T + 250 ms` (§2.1, §4.3):** Împărțirea curată între „Prima încercare în tempo” și „Practică în tempo”, plus aplicarea culorilor și simbolurilor pe note doar la `completed`, direct din rezultatul optim returnat de `srtEvaluate`.
+5. **Mapare UX compactă și afișare separată F1 / Recall / Extra (§2.1, §4.3, §11):** Afișarea distinctă a Scorului înălțimi F1 (%), a Notelor atinse (`TP / N`) și a Atacurilor suplimentare (`FP`), plus aplicarea culorilor și simbolurilor pe note doar la `completed`, după bariera `T + 250 ms`.
 
 ## Sources
 
