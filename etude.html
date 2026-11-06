@@ -558,6 +558,11 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .an-stage[data-mode="fall"]{background:#060a14}
   .an-score{height:100%; overflow:auto; position:relative; display:flex; flex-direction:column; padding:22px 24px 30px; background:var(--desk); color:#1a1714; touch-action:pan-x pan-y; scrollbar-gutter:stable}
   .an-score[data-look="night"]{background:var(--desk-night); color:#ece5d8}
+  /* what a marking means: a quiet label under it, never in the pointer's way */
+  .sc-tip{position:absolute; z-index:5; left:0; top:0; max-width:min(340px,calc(100% - 8px)); padding:6px 10px 7px; border-radius:8px; background:rgba(33,29,25,.95); color:#faf6ee; font:500 12.5px/1.4 var(--sans); box-shadow:0 6px 18px rgba(0,0,0,.2); pointer-events:none}
+  .sc-tip[hidden]{display:none}
+  .sc-tip b{display:block; font-weight:700; margin-bottom:1px}
+  .an-score[data-look="night"] .sc-tip{background:rgba(245,239,228,.97); color:#1d1a17}
   .an-score.is-empty{display:block; height:auto; overflow:visible; padding:0; background:none; color:var(--ink); scrollbar-gutter:auto}
   .an-score.is-over{outline:2px dashed var(--accent); outline-offset:-6px}
   .an-score svg{display:block}
@@ -2407,6 +2412,36 @@ const STRINGS={
     an_tex_1:'a single line', an_tex_2:'two voices', an_tex_3:'three voices', an_tex_4:'full chords',
     an_rh:'RH', an_lh:'LH', an_upper:'upper', an_lower:'lower', an_split_at:'split at %s', an_staff_hands:'from the two staves',
     an_harm_h:'Harmony', an_harm_note:'Each chord lasts the whole bar unless the notes clearly change harmony on a beat, and is read from all the notes sounding in it, weighted by length and metric position. Exact: every chord tone sounds and no other reading comes close. Likely: the best fit, though a tone is missing, other notes sound or another reading comes close. Suggested: ambiguous; alternatives are shown. Non-chord tones are classified from their melodic approach, resolution and overlap with the next harmony.', an_harm_implied:'This passage is a single melodic line, so the chords are implied rather than played. They are estimated per bar or half bar and are only suggestions.', an_harm_none:'No clear chords in this passage.', an_prog_label:'Chords by bar', an_prog_hint:'The blue chord follows playback. Click a chord to jump to it in the score; arrow keys move between chords.', an_more:'+%s more', an_beat:'beat %s', an_beats:'beats %s', an_det_exact:'exact', an_det_likely:'likely', an_det_suggested:'suggested', an_hsrc_staves:'RH/LH from the two staves', an_hsrc_tracks:'RH/LH from the MIDI tracks', an_hsrc_piece:'RH/LH as written in the piece', an_hsrc_split:'RH/LH by register, split at %s', an_hsrc_est:'RH/LH estimated by register (split at %s)', an_or:'or %s', an_implied:'implied',
+    sym_dyn_ppp:'pianississimo — as soft as possible; the quietest level', sym_dyn_pp:'pianissimo — very soft; much quieter than p', sym_dyn_p:'piano — soft; play quietly',
+    sym_dyn_mp:'mezzo piano — moderately soft; a little louder than p, softer than mf', sym_dyn_mf:'mezzo forte — moderately loud; a little louder than mp, softer than f',
+    sym_dyn_f:'forte — loud; play strongly', sym_dyn_ff:'fortissimo — very loud; much louder than f', sym_dyn_fff:'fortississimo — as loud as possible; the strongest level',
+    sym_dyn_sfz:'sforzando — a sudden strong accent on this note, then back to the surrounding level', sym_dyn_fz:'forzando — a forced, sudden accent on this note only',
+    sym_dyn_rfz:'rinforzando — a sudden reinforcement: this note or short group is suddenly louder', sym_dyn_fp:'forte-piano — attack loud, then drop at once to soft',
+    sym_cresc:'Crescendo (hairpin <) — the volume grows gradually over the length of the wedge', sym_dim:'Diminuendo / decrescendo (hairpin >) — the volume fades gradually over the length of the wedge',
+    sym_t_dolce:'dolce — sweetly, gently, with a soft warm tone', sym_t_dolcissimo:'dolcissimo — very sweetly and tenderly', sym_t_espressivo:'espressivo — expressively, with feeling',
+    sym_t_cantabile:'cantabile — in a singing style; let the melody sing over the accompaniment', sym_t_legato:'legato — smoothly connected, no gaps between the notes',
+    sym_t_leggiero:'leggiero — lightly, with a delicate touch', sym_t_sostenuto:'sostenuto — sustained; hold the notes their full length, often a little slower',
+    sym_t_ritardando:'ritardando (rit.) — gradually slow down', sym_t_rallentando:'rallentando (rall.) — gradually slow down, relaxing the pace', sym_t_accelerando:'accelerando (accel.) — gradually speed up',
+    sym_t_atempo:'a tempo — return to the main tempo', sym_t_rubato:'rubato — flexible time: stretch and push the tempo for expression', sym_t_crescendo:'crescendo (cresc.) — gradually louder',
+    sym_t_diminuendo:'diminuendo (dim.) — gradually softer', sym_t_poco:'poco — a little', sym_t_piu:'più — more', sym_t_molto:'molto — very, much', sym_t_sempre:'sempre — always, throughout',
+    sym_t_sim:'simile (sim.) — continue in the same way (same pedalling, articulation or pattern)', sym_t_grave:'Grave — very slow and solemn', sym_t_largo:'Largo — very slow and broad',
+    sym_t_larghetto:'Larghetto — rather slow, a little faster than Largo', sym_t_lento:'Lento — slow', sym_t_adagio:'Adagio — slow and at ease', sym_t_andantino:'Andantino — a little faster than Andante',
+    sym_t_andante:'Andante — at a walking pace', sym_t_moderato:'Moderato — at a moderate speed', sym_t_allegretto:'Allegretto — fairly fast, lighter than Allegro', sym_t_allegro:'Allegro — fast and lively',
+    sym_t_vivace:'Vivace — lively and quick', sym_t_presto:'Presto — very fast', sym_metro:'Metronome mark — %s beats per minute',
+    sym_rehearsal:'Rehearsal mark — a landmark letter for finding and starting from this place',
+    sym_ped:'Ped. — press the sustain (damper) pedal; the notes keep sounding', sym_pedup:'* — release the sustain pedal; the dampers stop the sound',
+    sym_f1:'thumb', sym_f2:'index finger', sym_f3:'middle finger', sym_f4:'ring finger', sym_f5:'little finger',
+    sym_finger:'Fingering — play this note with finger %s, the %b (1 thumb … 5 little finger)', sym_finger_sub:'Fingering — finger change on this note (%s): %b; start with the first finger, then switch while holding the key',
+    sym_staccato:'Staccato (dot) — play the note short and detached', sym_staccatissimo:'Staccatissimo (wedge) — very short and sharply detached',
+    sym_accent:'Accent (>) — play this note louder than its neighbours', sym_marcato:'Marcato / strong accent (^) — a strong, emphatic accent', sym_tenuto:'Tenuto (–) — hold the note its full value, gently stressed',
+    sym_fermata:'Fermata — hold the note or rest longer than written, then continue', sym_arpeggio:'Arpeggio (wavy line) — roll the chord quickly from the bottom note to the top',
+    sym_trill:'Trill (tr) — alternate rapidly between this note and the one above', sym_mordent:'Mordent — one quick alternation with the neighbouring note, then hold the main note',
+    sym_turn:'Turn — ornament circling the note: upper note, main note, lower note, main note', sym_slur:'Slur — play the notes under the curve smoothly connected (legato), as one phrase',
+    sym_tie:'Tie — join two notes of the same pitch: play once and hold for both values', sym_gliss:'Glissando / slide — slide from the first note to the second through the notes between',
+    sym_line:'Voice-leading line — follow the melody as it passes from one hand to the other',
+    sym_clef_g:'Treble clef (G clef) — the curl marks G above middle C on the second line; usually the right hand', sym_clef_f:'Bass clef (F clef) — the dots mark F below middle C on the fourth line; usually the left hand',
+    sym_clef_c:'C clef — its centre marks middle C', sym_key:'Key signature — sharps or flats that hold for every note of that name until changed; here %s',
+    sym_time:'Time signature — %s beats in each bar; the lower number (%b) gives the beat value', sym_chord:'Chord symbol — the harmony here: root, quality and, after a slash, the bass note',
     an_nct_label:'Non-chord tones', an_nct_passing:'passing', an_nct_neighbor:'neighbor', an_nct_anticipation:'anticipation', an_nct_suspension:'suspension', an_nct_other:'unclassified',
     an_cad_auth:'authentic cadence', an_cad_plagal:'plagal cadence', an_cad_decept:'deceptive cadence', an_cad_half:'half cadence', an_cad_title:'Possible cadence; check the phrase ending',
     an_motifs_h:'Melody motifs', an_motif_none:'No four-note motif repeats in the top line.', an_motif_title:'Steps of %s semitones; select every occurrence',
@@ -2749,6 +2784,36 @@ const STRINGS={
     an_tex_1:'o singură linie', an_tex_2:'două voci', an_tex_3:'trei voci', an_tex_4:'acorduri pline',
     an_rh:'m.d.', an_lh:'m.s.', an_upper:'acut', an_lower:'grav', an_split_at:'împărțit la %s', an_staff_hands:'din cele două portative',
     an_harm_h:'Armonie', an_harm_note:'Fiecare acord ține toată măsura, dacă notele nu schimbă clar armonia pe un timp, și este citit din toate notele care sună în el, ponderate după durată și poziția metrică. Exact: sună toate notele acordului și nicio altă citire nu se apropie. Probabil: cea mai bună potrivire, deși lipsește o notă, sună și alte note sau o altă citire se apropie. Sugerat: ambiguu; sunt arătate alternativele. Notele străine acordului sunt clasificate după apropierea melodică, rezolvare și suprapunerea cu armonia următoare.', an_harm_implied:'Fragmentul este o singură linie melodică, așa că acordurile sunt subînțelese, nu cântate. Sunt estimate pe măsură sau pe jumătăți de măsură și sunt doar sugestii.', an_harm_none:'Niciun acord clar în acest fragment.', an_prog_label:'Acorduri pe măsuri', an_prog_hint:'Acordul albastru urmărește redarea. Apasă un acord ca să sari la el în partitură; săgețile mută între acorduri.', an_more:'încă %s', an_beat:'timpul %s', an_beats:'timpii %s', an_det_exact:'exact', an_det_likely:'probabil', an_det_suggested:'sugerat', an_hsrc_staves:'m.d./m.s. din cele două portative', an_hsrc_tracks:'m.d./m.s. din pistele MIDI', an_hsrc_piece:'m.d./m.s. așa cum sunt scrise în piesă', an_hsrc_split:'m.d./m.s. după registru, împărțit la %s', an_hsrc_est:'m.d./m.s. estimate după registru (împărțit la %s)', an_or:'sau %s', an_implied:'subînțeles',
+    sym_dyn_ppp:'pianississimo — cât se poate de încet; cel mai slab nivel', sym_dyn_pp:'pianissimo — foarte încet; mult mai încet decât p', sym_dyn_p:'piano — încet; cântă liniștit',
+    sym_dyn_mp:'mezzo piano — moderat de încet; puțin mai tare decât p, mai încet decât mf', sym_dyn_mf:'mezzo forte — moderat de tare; puțin mai tare decât mp, mai încet decât f',
+    sym_dyn_f:'forte — tare; cântă cu putere', sym_dyn_ff:'fortissimo — foarte tare; mult mai tare decât f', sym_dyn_fff:'fortississimo — cât se poate de tare; cel mai puternic nivel',
+    sym_dyn_sfz:'sforzando — accent brusc și puternic pe această notă, apoi revii la nivelul din jur', sym_dyn_fz:'forzando — accent forțat, brusc, doar pe această notă',
+    sym_dyn_rfz:'rinforzando — întărire bruscă: nota sau grupul scurt devine dintr-odată mai tare', sym_dyn_fp:'forte-piano — atac tare, apoi scazi imediat la încet',
+    sym_cresc:'Crescendo (con <) — volumul crește treptat pe toată lungimea conului', sym_dim:'Diminuendo / decrescendo (con >) — volumul scade treptat pe toată lungimea conului',
+    sym_t_dolce:'dolce — dulce, blând, cu un ton cald și moale', sym_t_dolcissimo:'dolcissimo — foarte dulce și tandru', sym_t_espressivo:'espressivo — expresiv, cu sentiment',
+    sym_t_cantabile:'cantabile — cântat, ca o voce; melodia cântă deasupra acompaniamentului', sym_t_legato:'legato — legat, fără pauze între note',
+    sym_t_leggiero:'leggiero — ușor, cu atingere delicată', sym_t_sostenuto:'sostenuto — susținut; ține notele pe toată durata, adesea puțin mai rar',
+    sym_t_ritardando:'ritardando (rit.) — încetinește treptat', sym_t_rallentando:'rallentando (rall.) — încetinește treptat, relaxând mișcarea', sym_t_accelerando:'accelerando (accel.) — accelerează treptat',
+    sym_t_atempo:'a tempo — revino la tempoul principal', sym_t_rubato:'rubato — timp flexibil: întinzi și grăbești tempoul pentru expresie', sym_t_crescendo:'crescendo (cresc.) — treptat mai tare',
+    sym_t_diminuendo:'diminuendo (dim.) — treptat mai încet', sym_t_poco:'poco — puțin', sym_t_piu:'più — mai mult', sym_t_molto:'molto — foarte, mult', sym_t_sempre:'sempre — mereu, în continuare',
+    sym_t_sim:'simile (sim.) — continuă la fel (aceeași pedală, articulație sau formulă)', sym_t_grave:'Grave — foarte rar și solemn', sym_t_largo:'Largo — foarte rar și larg',
+    sym_t_larghetto:'Larghetto — destul de rar, puțin mai repede decât Largo', sym_t_lento:'Lento — rar, lent', sym_t_adagio:'Adagio — rar, liniștit', sym_t_andantino:'Andantino — puțin mai repede decât Andante',
+    sym_t_andante:'Andante — în pas de mers', sym_t_moderato:'Moderato — într-un tempo moderat', sym_t_allegretto:'Allegretto — destul de repede, mai ușor decât Allegro', sym_t_allegro:'Allegro — repede și vioi',
+    sym_t_vivace:'Vivace — vioi și iute', sym_t_presto:'Presto — foarte repede', sym_metro:'Indicație de metronom — %s bătăi pe minut',
+    sym_rehearsal:'Reper de studiu — literă-reper pentru a găsi locul și a începe de aici',
+    sym_ped:'Ped. — apasă pedala de rezonanță (dreapta); notele continuă să sune', sym_pedup:'* — ridică pedala de rezonanță; amortizoarele opresc sunetul',
+    sym_f1:'degetul mare', sym_f2:'arătătorul', sym_f3:'degetul mijlociu', sym_f4:'inelarul', sym_f5:'degetul mic',
+    sym_finger:'Digitație — cânți nota cu degetul %s, %b (1 degetul mare … 5 degetul mic)', sym_finger_sub:'Digitație — schimbare de deget pe această notă (%s): %b; începi cu primul deget, apoi schimbi ținând clapa apăsată',
+    sym_staccato:'Staccato (punct) — cântă nota scurt, detașat', sym_staccatissimo:'Staccatissimo (pană) — foarte scurt și net detașat',
+    sym_accent:'Accent (>) — cântă nota mai tare decât vecinele ei', sym_marcato:'Marcato / accent puternic (^) — accent apăsat, puternic', sym_tenuto:'Tenuto (–) — ține nota toată durata, ușor apăsat',
+    sym_fermata:'Coroană (fermata) — ține nota sau pauza mai mult decât e scris, apoi continuă', sym_arpeggio:'Arpegiu (linie ondulată) — răsfiră acordul repede, de la nota de jos la cea de sus',
+    sym_trill:'Tril (tr) — alternează rapid între această notă și cea de deasupra', sym_mordent:'Mordent — o alternanță rapidă cu nota vecină, apoi ții nota principală',
+    sym_turn:'Grupet — ornament în jurul notei: nota de sus, nota principală, nota de jos, nota principală', sym_slur:'Legato (arc) — notele de sub arc se cântă legat, ca o singură frază',
+    sym_tie:'Legato de prelungire — unește două note de aceeași înălțime: cânți o dată și ții ambele durate', sym_gliss:'Glissando — aluneci de la prima notă la a doua prin notele dintre ele',
+    sym_line:'Linie de conducere a vocii — urmărește melodia când trece dintr-o mână în cealaltă',
+    sym_clef_g:'Cheia sol — bucla marchează sol de deasupra lui do central, pe linia a doua; de obicei mâna dreaptă', sym_clef_f:'Cheia fa — punctele marchează fa de sub do central, pe linia a patra; de obicei mâna stângă',
+    sym_clef_c:'Cheia do — centrul ei marchează do central', sym_key:'Armură — diezii sau bemolii valabili pentru toate notele cu acel nume până la o schimbare; aici: %s',
+    sym_time:'Măsură — %s timpi în fiecare măsură; cifra de jos (%b) arată valoarea timpului', sym_chord:'Simbol de acord — armonia aici: fundamentala, tipul și, după bară, nota din bas',
     an_nct_label:'Note străine acordului', an_nct_passing:'trecere', an_nct_neighbor:'broderie', an_nct_anticipation:'anticipație', an_nct_suspension:'întârziere', an_nct_other:'neclasificată',
     an_cad_auth:'cadență autentică', an_cad_plagal:'cadență plagală', an_cad_decept:'cadență întreruptă', an_cad_half:'semicadență', an_cad_title:'Cadență posibilă; verifică finalul frazei',
     an_motifs_h:'Motive melodice', an_motif_none:'Niciun motiv de patru note nu se repetă în vocea de sus.', an_motif_title:'Pași de %s semitonuri; selectează toate aparițiile',
@@ -7468,6 +7533,7 @@ function scoreSeconds(beat){let sec=0,last=0,bpm=SCORE.tempoList[0].bpm;for(cons
 function scoreBeatAt(sec){let acc=0,last=0,bpm=SCORE.tempoList[0].bpm;for(const e of SCORE.tempoList){const d=(e.beat-last)*60/bpm;if(acc+d>sec)break;acc+=d;last=e.beat;bpm=e.bpm;}return last+(sec-acc)*bpm/60;}
 function scoreXmlNotes(doc){
  const notes=[],tempos=[],measures=[],keys=[],dynamics=[],transients=[],wedgeEvents=[],pedalEvents=[],dolces=[],partEnds=[];
+ const linkOpen=new Map(), linkPairs=[], lineEvents=[];   // slurs, glissandi and slides by note; dashes and brackets by beat
  let malformed=false;
  const DYN={ppp:28,pp:42,p:56,mp:70,mf:84,f:98,ff:112,fff:122,sfz:115,fz:115,rfz:115};
  const direct=(node,name)=>[...node.children].filter(c=>c.localName===name), child=(node,name)=>direct(node,name)[0]||null;
@@ -7517,6 +7583,7 @@ function scoreXmlNotes(doc){
       direct(dt,'dynamics').forEach(d=>pushDynamic(pi,0,beat,dynamicInfo(d)));
       direct(dt,'wedge').forEach(w=>{ const type=(w.getAttribute('type')||'').toLowerCase(); if(['crescendo','diminuendo','stop'].includes(type)) wedgeEvents.push({part:pi,staff:0,beat,type,number:w.getAttribute('number')||'1',sequence:sequence++}); });
       direct(dt,'pedal').forEach(p=>{ const type=(p.getAttribute('type')||'').toLowerCase(); if(['start','change','stop'].includes(type)) pedalEvents.push({part:pi,staff,beat,type,sequence:sequence++}); });
+      for(const kind of ['dashes','bracket']) direct(dt,kind).forEach(l=>{ const type=(l.getAttribute('type')||'').toLowerCase(); if(type==='start'||type==='stop') lineEvents.push({part:pi,staff:staff||1,beat,kind,type,number:l.getAttribute('number')||'1',sequence:sequence++}); });
       const words=direct(dt,'words').map(w=>w.textContent).join(' ');
       if(/\bdolce|dolcissimo/i.test(words)) dolces.push({part:pi,staff:0,beat,on:!/\bnon\s+dolce/i.test(words),sequence:sequence++});
      });
@@ -7538,7 +7605,8 @@ function scoreXmlNotes(doc){
         const prev=stop&&notes.findLast(n=>n.part===pi&&n.staff===staff&&n.voice===voice&&n.midi===midi&&Math.abs(n.end-start)<.001);
         const fg=number(node.querySelector('fingering')), nd=[...node.querySelectorAll('notations > dynamics')].map(dynamicInfo).find(Boolean), attr=dynamicValue(node.getAttribute('dynamics'));
         const arts=new Set([...node.querySelectorAll('notations > articulations > *')].map(a=>a.localName));
-        if(prev) prev.end=start+duration;
+        let own=null;
+        if(prev){ prev.end=start+duration; own=prev; }
         else if(duration>0){
          const n={midi,start,end:start+duration,vel:90,hand,part:pi,staff,voice,type:child(node,'type')?.textContent||'',art:{
           staccato:arts.has('staccato'),staccatissimo:arts.has('staccatissimo'),accent:arts.has('accent'),strongAccent:arts.has('strong-accent'),tenuto:arts.has('tenuto')},
@@ -7547,8 +7615,10 @@ function scoreXmlNotes(doc){
          if(nd?.value!=null) n.explicitVel=nd.value; else if(attr!=null) n.explicitVel=attr;
          if(nd?.hit!=null) n.dynamicHit=nd.hit;
          if(!chord&&gracePending.has(key)){ n.graces=gracePending.get(key); gracePending.delete(key); }
-         notes.push(n);
+         notes.push(n); own=n;
         }
+        if(own) node.querySelectorAll('notations > slur, notations > glissando, notations > slide').forEach(l=>{ const type=(l.getAttribute('type')||'').toLowerCase(), key=pi+':'+l.localName+':'+(l.getAttribute('number')||'1');
+         if(type==='start') linkOpen.set(key,own); else if(type==='stop'&&linkOpen.has(key)){ const a=linkOpen.get(key); linkOpen.delete(key); if(a!==own) linkPairs.push({kind:l.localName,a,b:own,style:l.getAttribute('line-type')||''}); } });
        }
       }
      }
@@ -7627,7 +7697,16 @@ function scoreXmlNotes(doc){
   if(n.nextSame!=null&&n.nextSame>n.start+.001) soundEnd=Math.min(soundEnd,n.nextSame);
   n.soundEnd=Math.max(n.start+.03,soundEnd); delete n.nextSame;
  });
- return {notes:sorted,tempos:tempos.filter(e=>e.bpm>0&&Number.isFinite(e.bpm)&&Number.isFinite(e.beat)),measures,keys};
+ // Lines between the hands: cross-staff slurs, glissandi and slides (OSMD leaves them out) and dashed or bracketed
+ // voice-leading lines that start on one staff and end on the other, from the first note after the start to the last before the stop.
+ const lineOpen=new Map();
+ lineEvents.sort(byTime).forEach(e=>{ const key=e.part+':'+e.kind+':'+e.number;
+  if(e.type==='start'){ lineOpen.set(key,e); return; }
+  const a0=lineOpen.get(key); lineOpen.delete(key); if(!a0||a0.staff===e.staff) return;
+  const a=sorted.find(n=>n.part===a0.part&&n.staff===a0.staff&&n.start>=a0.beat-.001), b=sorted.filter(n=>n.part===e.part&&n.staff===e.staff&&n.start<=e.beat+.001&&n.start>=a0.beat-.001).pop();
+  if(a&&b&&a!==b) linkPairs.push({kind:e.kind,a,b,style:'dashed'}); });
+ const links=linkPairs.filter(l=>l.a.staff!==l.b.staff).map(l=>({kind:l.kind,a:sorted.indexOf(l.a),b:sorted.indexOf(l.b),style:l.style})).filter(l=>l.a>=0&&l.b>=0);
+ return {notes:sorted,tempos:tempos.filter(e=>e.bpm>0&&Number.isFinite(e.bpm)&&Number.isFinite(e.beat)),measures,keys,links};
 }
 function scorePitch(m,fifths,minor){const s=spellMidi(m,fifths,minor);return '<pitch><step>'+LETTERS.letter[s.li]+'</step>'+(s.acc?'<alter>'+s.acc+'</alter>':'')+'<octave>'+s.oct+'</octave></pitch>';}
 function xmlEsc(s){return String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));}
@@ -7720,21 +7799,23 @@ async function scoreRender(){
  const version=++SCORE.version, box=$('an-roll');
  if(!SCORE.xml){ anRenderEmpty(); return false; }
  box.classList.remove('is-empty'); box.classList.add('is-loading'); box.setAttribute('aria-busy','true'); box.hidden=false; box.innerHTML='<div class="an-sheet"></div>';
- SCORE.heads=new Map(); SCORE.engine=null; SCORE.geo=null;
+ SCORE.heads=new Map(); SCORE.engine=null; SCORE.geo=null; SCORE.syms=[];
  await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));   // let the loading state paint before the engraver blocks
  if(version!==SCORE.version) return false;
  const isXml=!!AN.source&&AN.source.kind==='xml', autoBeam=isXml&&!/<beam[\s>]/.test(SCORE.xml);   // generated scores already carry <beam> groups per voice
  const oneStaffPart=(SCORE.xml.match(/<score-part[\s>]/g)||[]).length<=1;   // a lone piano needs no "Instr. P1" at the left
+ scorePatchOsmd();
  const engine=new opensheetmusicdisplay.OpenSheetMusicDisplay(box.firstElementChild,{autoResize:false,backend:'svg',drawTitle:true,drawComposer:true,drawPartNames:!oneStaffPart,drawPartAbbreviations:false,drawMeasureNumbers:true,
   autoBeam,autoBeamOptions:{beam_rests:false,beam_middle_rests_only:false,maintain_stem_directions:true,groups:scoreBeamGroups()}});
  const R=engine.EngravingRules;   // MuseScore-like page: wider margins, title block, measure numbers only at system starts
  R.PageLeftMargin=R.PageRightMargin=7; R.PageTopMargin=6; R.PageBottomMargin=6; R.TitleTopDistance=4; R.SystemComposerDistance=2.5;
- R.MinimumDistanceBetweenSystems=isXml?9.5:7.5; R.MeasureNumberLabelHeight=1.4; R.InstrumentLabelTextHeight=1.9;
+ R.MinimumDistanceBetweenSystems=isXml?6:7.5; if(isXml){ R.PageTopMargin=R.PageBottomMargin=5; R.BetweenStaffDistance=4.5; R.StaffDistance=6.5; } R.MeasureNumberLabelHeight=1.4; R.InstrumentLabelTextHeight=1.9;
  // Generated scores: equal musical bars create a reliable time rail. Imported MusicXML keeps the engraver's natural
  // widths and the file's own system breaks (3–4 bars a line, as in MuseScore); the cursor then follows note onsets.
  R.FixedMeasureWidth=!isXml; SCORE.fixedWidth=!isXml; SCORE.fit=null;
  // Chord symbols clear the treble clef and top line; fingering keeps a little air above / below the staff it labels.
- if(isXml){ R.ChordSymbolYOffset=.8; R.FingeringOffsetY=.3; }
+ // Stacked chord fingerings stay compact (smaller digits, tighter rows); scoreFixFingerings clears what still touches.
+ if(isXml){ R.ChordSymbolYOffset=.8; R.FingeringOffsetY=.3; R.FingeringTextSize=1.35; R.FingeringPaddingY=-.35; }
  const source=SCORE.xml.trim();
  await engine.load(source.startsWith('<?xml')?source:'<?xml version="1.0" encoding="utf-8"?>'+source);
  if(version!==SCORE.version) return false;
@@ -7749,15 +7830,19 @@ function scoreLayout(){
  const look=SCORE_LOOK[SCORE.look], cont=SCORE.layout==='cont', R=engine.EngravingRules, sheet=box.querySelector('.an-sheet'), cs=getComputedStyle(box);
  box.dataset.layout=SCORE.layout;
  const avail=box.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
- sheet.style.width=cont?'':Math.max(240,Math.round(Math.min(SC_PAGE_W*SCORE.zoom,avail)))+'px';
+ const sheetW=Math.max(240,Math.round(Math.min(SC_PAGE_W*SCORE.zoom,avail)));
+ sheet.style.width=cont?'':sheetW+'px';
  engine.setOptions({defaultColorMusic:look.ink,pageBackgroundColor:look.bg,pageFormat:cont?'Endless':'A4_P',renderSingleHorizontalStaffline:cont,drawTitle:!cont,drawSubtitle:!cont,drawComposer:!cont,drawLyricist:!cont});
  R.StaffLineColor=look.staff; R.RenderMeasureNumbersOnlyAtSystemStart=!cont; R.MeasureNumberLabelOffset=cont?1:2;
- engine.Zoom=SCORE.zoom*SC_BASE; scoreRingFit(engine.Zoom);
+ // A page narrower than A4 × zoom is the same A4 page scaled down: the staff space shrinks with it, so every
+ // system keeps its bars and every page its systems whatever the panel width.
+ engine.Zoom=cont?SCORE.zoom*SC_BASE:sheetW/SC_PAGE_W*SC_BASE; scoreRingFit(engine.Zoom);
  scoreFitRender(engine,!cont&&!SCORE.fixedWidth&&/new-(system|page)="yes"/.test(SCORE.xml),SCORE.zoom+'|'+avail);
+ scoreFixFingerings(box,engine);
  if(SCORE.look==='night') scoreNightSweep(box,look.ink);
  SCORE.stale=false; SCORE.layoutWidth=box.clientWidth;
  box.classList.remove('is-loading','is-empty'); box.setAttribute('aria-busy','false'); box.dataset.look=SCORE.look;
- scoreBind(engine); scoreGeo(engine);
+ scoreBind(engine); scoreXLines(); scoreGeo(engine); scoreSyms(engine);
  box.hidden=FALL.mode!=='score';
  scorePaint();
 }
@@ -7805,6 +7890,163 @@ function scoreBind(engine){
 function scorePaintEl(g){const i=+g.dataset.i,look=SCORE_LOOK[SCORE.look],selected=AN.selected.has(i),res=PRAC.res.get(i),n=AN.notes[i],color=SCORE.hl&&SCORE.lit.has(i)?look.lit:selected?look.sel:res==='hit'?look.ok:res==='miss'?look.bad:n&&!pracMine(n)?look.dim:null;for(const shape of [g,...g.querySelectorAll('path,ellipse,circle')]){if(!shape.hasAttribute('data-original-fill')){shape.dataset.originalFill=shape.style.fill||'';shape.dataset.originalStroke=shape.style.stroke||'';}shape.style.fill=color||shape.dataset.originalFill;shape.style.stroke=color||shape.dataset.originalStroke;}g.setAttribute('aria-pressed',selected?'true':'false');}
 function scorePaintIdx(i){ (SCORE.heads.get(i)||[]).forEach(scorePaintEl); }
 function scorePaint(){ SCORE.heads.forEach(list=>list.forEach(scorePaintEl)); scoreMarks(); scoreCursorUpdate(false); anAnalyze(); }
+// OSMD draws each pedal mark straight onto the page; a group per mark lets the hover explain "Ped." and "*".
+function scorePatchOsmd(){ const D=opensheetmusicdisplay.VexFlowMusicSheetDrawer, P=D&&D.prototype; if(!P||P.scPedalGroups||typeof P.drawPedals!=='function') return;
+ const draw=P.drawPedals; P.drawPedals=function(line){ const ctx=this.backend&&this.backend.getContext&&this.backend.getContext();
+  if(!ctx||!ctx.openGroup||!line||!line.Pedals) return draw.call(this,line);
+  for(const p of line.Pedals){ ctx.openGroup('sc-pedal'); try{ draw.call(this,{Pedals:[p]}); } finally{ ctx.closeGroup(); } } };
+ P.scPedalGroups=true; }
+// SVG user units of the page a node sits on, from screen pixels (OSMD draws 10 units per staff space).
+function scoreToUser(svg,x,y){ const m=svg.getScreenCTM(); if(!m) return null; const p=svg.createSVGPoint(); p.x=x; p.y=y; return p.matrixTransform(m.inverse()); }
+// Lines between the hands that OSMD leaves out: cross-staff slurs, glissandi and slides, dashed voice-leading lines.
+function scoreXLines(){
+ const links=(AN.source&&AN.source.links)||[], ink=SCORE_LOOK[SCORE.look].ink, NS='http://www.w3.org/2000/svg';
+ links.forEach(l=>{ const ga=(SCORE.heads.get(l.a)||[])[0], gb=(SCORE.heads.get(l.b)||[])[0]; if(!ga||!gb) return;
+  const svg=ga.ownerSVGElement; if(!svg||svg!==gb.ownerSVGElement) return;
+  const ra=ga.getBoundingClientRect(), rb=gb.getBoundingClientRect(), A=scoreToUser(svg,ra.left+ra.width/2,ra.top+ra.height/2), B=scoreToUser(svg,rb.left+rb.width/2,rb.top+rb.height/2); if(!A||!B) return;
+  const sp=10, hw=Math.max(.5,scoreToUser(svg,ra.right,0).x-scoreToUser(svg,ra.left,0).x)/2;
+  if(B.x<A.x+hw||Math.abs(B.y-A.y)>sp*24) return;   // the far end is on another system
+  const el=document.createElementNS(NS,'path'); el.setAttribute('class','sc-xline'); el.dataset.kind=l.kind==='slur'?'slur':l.kind==='glissando'||l.kind==='slide'?'gliss':'line';
+  if(l.kind==='slur'){   // a crescent bowing over the top, from just above one notehead to just above the other
+   const x0=A.x+hw*.4, y0=A.y-sp*.9, x1=B.x-hw*.4, y1=B.y-sp*.9, len=Math.hypot(x1-x0,y1-y0), h=Math.min(sp*2.4,Math.max(sp*.8,len*.2)), th=sp*.22;
+   const nx=(y1-y0)/len, ny=-(x1-x0)/len, s=ny>0?-1:1, c=(f,k)=>[x0+(x1-x0)*f+nx*s*k, y0+(y1-y0)*f+ny*s*k].map(v=>v.toFixed(2)).join(' ');
+   el.setAttribute('d',`M${x0.toFixed(2)} ${y0.toFixed(2)} C${c(.25,h)} ${c(.75,h)} ${x1.toFixed(2)} ${y1.toFixed(2)} C${c(.75,h+th)} ${c(.25,h+th)} ${x0.toFixed(2)} ${y0.toFixed(2)}Z`);
+   el.setAttribute('fill',ink); el.setAttribute('stroke',ink); el.setAttribute('stroke-width','.4');
+  }else{
+   const x0=A.x+hw*1.4, x1=B.x-hw*1.4; if(x1<=x0) return;
+   el.setAttribute('d',`M${x0.toFixed(2)} ${A.y.toFixed(2)} L${x1.toFixed(2)} ${B.y.toFixed(2)}`); el.setAttribute('fill','none'); el.setAttribute('stroke',ink);
+   el.setAttribute('stroke-width',l.kind==='glissando'||l.kind==='slide'?'1.3':'1'); if(l.style==='dashed'||l.style==='dotted'||el.dataset.kind==='line') el.setAttribute('stroke-dasharray',l.style==='dotted'?'1 3':'5 4');
+  }
+  svg.appendChild(el); });
+}
+// Chord fingerings stacked one above the other must never touch: each column is re-stacked from the notes outwards,
+// clear of its noteheads, stems and the digits already placed on that staff, above or below as OSMD chose.
+function scoreFixFingerings(box,engine){
+ const gs=engine&&engine.GraphicSheet; if(!gs||!box) return;
+ const ink=r=>({l:r.left+r.width*.08,r:r.right-r.width*.08,t:r.top+r.height*.18,b:r.bottom-r.height*.2});
+ const crossX=(a,b)=>Math.min(a.r,b.r)-Math.max(a.l,b.l)>.5;
+ gs.MusicPages.forEach(pg=>pg.MusicSystems.forEach(sys=>sys.StaffLines.forEach(sl=>{ const placed=[];
+  sl.Measures.forEach(gm=>(gm.staffEntries||[]).forEach(gse=>{
+   const labels=(gse.FingeringEntries||[]).map(f=>f.SVGNode).filter(n=>n&&n.ownerSVGElement); if(!labels.length) return;
+   const obstacles=[]; let mid=0, nh=0;
+   (gse.graphicalVoiceEntries||[]).forEach(gve=>{ const vf=gve.vfStaveNote||gve.mVexFlowStaveNote, g=(vf&&vf.getAttribute&&vf.getAttribute('el'))||(gve.notes||[]).map(n=>n.getSVGGElement&&n.getSVGGElement()).find(Boolean); if(!g||!g.querySelectorAll) return;
+    g.querySelectorAll('.vf-notehead').forEach(h=>{ const r=h.getBoundingClientRect(); if(!r.width) return; obstacles.push({l:r.left,r:r.right,t:r.top,b:r.bottom}); mid+=r.top+r.height/2; nh++; });
+    g.querySelectorAll('.vf-stem').forEach(s=>{ const r=s.getBoundingClientRect(); if(r.height) obstacles.push({l:r.left-1,r:r.right+1,t:r.top,b:r.bottom}); }); });
+   if(!nh) return; mid/=nh;
+   const svg=labels[0].ownerSVGElement, ctm=svg.getScreenCTM(); if(!ctm||!ctm.d) return;
+   const gap=Math.max(1,ctm.d*2.5), cap=ctm.d*40;   // about 0.25 and 4 staff spaces in screen pixels
+   const items=labels.map(n=>{ const r=n.getBoundingClientRect(); return {n,box:ink(r),up:r.top+r.height/2<mid}; });
+   for(const up of [true,false]){
+    items.filter(it=>it.up===up).sort((a,b)=>up?b.box.b-a.box.b:a.box.t-b.box.t).forEach(it=>{ let dy=0;
+     for(let k=0;k<16;k++){ const bx={l:it.box.l,r:it.box.r,t:it.box.t+dy,b:it.box.b+dy};
+      const hit=[...obstacles,...placed].find(o=>crossX(bx,o)&&bx.b+gap>o.t&&bx.t-gap<o.b); if(!hit) break;
+      dy+=up?hit.t-gap-bx.b:hit.b+gap-bx.t; }
+     if(Math.abs(dy)>cap) dy=Math.sign(dy)*cap;
+     if(Math.abs(dy)>.25) scoreShiftY(it.n,dy/ctm.d);
+     placed.push({l:it.box.l,r:it.box.r,t:it.box.t+dy,b:it.box.b+dy}); });
+   }
+  }));
+ })));
+ // OSMD sometimes prints the same words twice in one spot ("dolce" over "dolce"): keep one. A chord symbol raised over the
+ // upper staff must not sit on the words there ("dolce", "rit."): the words move above it.
+ const chords=new Set(), fings=new Set();
+ gs.MeasureList.forEach(list=>(list||[]).forEach(gm=>gm&&(gm.staffEntries||[]).forEach(gse=>{ (gse.graphicalChordContainers||[]).forEach(c=>{ const n=c.GraphicalLabel&&c.GraphicalLabel.SVGNode; if(n) chords.add(n); }); (gse.FingeringEntries||[]).forEach(f=>{ if(f.SVGNode) fings.add(f.SVGNode); }); })));
+ box.querySelectorAll('svg').forEach(svg=>{ const ctm=svg.getScreenCTM(); if(!ctm||!ctm.d) return; const kept=[], chordBoxes=[], words=[];
+  svg.querySelectorAll('text').forEach(x=>{ const r=x.getBoundingClientRect(), s=x.textContent.trim(); if(!s||!r.width) return;
+   if(kept.some(k=>k.s===s&&Math.abs(k.r.left-r.left)<3&&Math.abs(k.r.top-r.top)<3)){ x.remove(); return; } kept.push({s,r});
+   if([...chords].some(c=>c===x||c.contains(x))) chordBoxes.push(ink(r)); else if(![...fings].some(f=>f===x||f.contains(x))&&!x.closest('.measure-number')) words.push({x,b:ink(r)}); });
+  words.forEach(({x,b})=>{ const hit=chordBoxes.find(c=>crossX(b,c)&&b.b+ctm.d*5>c.t&&b.t<c.b); if(!hit||b.t>hit.t) return;
+   scoreShiftY(x,(hit.t-ctm.d*5-b.b)/ctm.d); }); });
+}
+// Adds to any vertical shift already applied, so the pass can run again on a page it has already tidied.
+function scoreShiftY(n,dy){ const m=/^translate\(0 (-?[\d.]+)\)$/.exec(n.getAttribute('transform')||''); n.setAttribute('transform',`translate(0 ${((m?+m[1]:0)+dy).toFixed(2)})`); }
+// Every marking on the page that the hover can explain: its box (relative to its page, which only moves as a whole), kind and value.
+const SC_DYN=/^(ppp|pp|p|mp|mf|f|ff|fff|sfz|fz|rfz|fp|sf|sfp)$/;
+const SC_TERMS=[['dolcissimo'],['dolce'],['espressivo','espress\\.?','espr\\.'],['cantabile'],['legato'],['leggiero','leggero'],['sostenuto','sost\\.'],
+ ['ritardando','ritard\\.','rit\\.?'],['rallentando','rall\\.'],['accelerando','accel\\.'],['atempo','a tempo'],['rubato'],['crescendo','cresc\\.'],['diminuendo','decrescendo','dim\\.','decresc\\.'],
+ ['poco'],['piu','più'],['molto'],['sempre'],['sim','simile','sim\\.'],['grave'],['largo'],['larghetto'],['lento'],['adagio'],['andantino'],['andante'],['moderato'],['allegretto'],['allegro'],['vivace'],['presto']]
+ .map(([k,...alts])=>({k,re:new RegExp('(^|[^\\p{L}])('+(alts.length?alts:[k]).join('|')+')(?=$|[^\\p{L}])','iu')}));
+const SC_ARTS={'a.':'staccato','av':'staccatissimo','a>':'accent','a^':'marcato','a-':'tenuto','a@a':'fermata','a@u':'fermata','a@s':'fermata','a@l':'fermata','a@as':'fermata','a@us':'fermata',
+ tr:'trill',mordent:'mordent',mordent_inverted:'mordent',turn:'turn',turn_inverted:'turn',prallprall:'trill',upprall:'trill'};
+function scoreSyms(engine){
+ const box=$('an-roll'), list=[], gs=engine&&engine.GraphicSheet; SCORE.syms=list; scoreTip(null); if(!gs) return;
+ const pageRects=new Map(), pageOf=el=>el&&el.closest&&el.closest('[id^="osmdCanvasPage"]');
+ const add=(el,kind,val,rect,loose=true,ref)=>{ const r=rect||el.getBoundingClientRect(), page=pageOf(el||ref); if((!r.width&&!r.height)||!page) return;
+  if(!pageRects.has(page)) pageRects.set(page,page.getBoundingClientRect()); const pr=pageRects.get(page);
+  const i=list.length; list.push({kind,val,el,loose,page,x0:r.left-pr.left,y0:r.top-pr.top,x1:r.right-pr.left,y1:r.bottom-pr.top}); if(el){ el.dataset.sym=i; el.style.cursor='help'; el.tabIndex=0; el.setAttribute('aria-label',scoreSymText({kind,val}).line); } };
+ const seen=new Set();   // the title block is not a marking
+ ['title','subtitle','composer','lyricist','copyright'].forEach(k=>{ const n=gs[k]&&gs[k].SVGNode; if(n){ seen.add(n); if(n.querySelectorAll) n.querySelectorAll('text').forEach(x=>seen.add(x)); } });
+ gs.MusicPages.forEach(pg=>pg.MusicSystems.forEach(sys=>sys.StaffLines.forEach(sl=>{
+  (sl.AbstractExpressions||[]).forEach(e=>(e.lines||[]).forEach(l=>{ const g=l.SVGElement; if(!g||!e.expression||e.expression.dynamicType==null) return; seen.add(g); add(g,e.expression.dynamicType===0?'cresc':'dim'); }));
+  sl.Measures.forEach(gm=>(gm.staffEntries||[]).forEach(gse=>{
+   (gse.FingeringEntries||[]).forEach(f=>{ const n=f.SVGNode; if(!n) return; n.querySelectorAll('text').forEach(x=>seen.add(x)); add(n,'finger',(f.Label&&f.Label.text||n.textContent||'').trim()); });
+   (gse.graphicalChordContainers||[]).forEach(c=>{ const lb=c.GraphicalLabel, n=lb&&lb.SVGNode; if(!n) return; n.querySelectorAll('text').forEach(x=>seen.add(x)); if(n.localName==='text') seen.add(n); add(n,'chord',(lb.Label&&lb.Label.text||n.textContent||'').trim()); });
+   (gse.graphicalVoiceEntries||[]).forEach(gve=>{ const vf=gve.vfStaveNote||gve.mVexFlowStaveNote, el=vf&&vf.getAttribute&&vf.getAttribute('el'), mg=el&&el.querySelector&&el.querySelector('.vf-modifiers'); if(!mg||!vf.modifiers) return;
+    const paths=[...mg.children], mods=vf.modifiers, shown=paths.length===mods.length?mods:mods.filter(m=>/articulation|ornament/i.test(m.getCategory?m.getCategory():''));
+    if(paths.length!==shown.length) return;
+    shown.forEach((m,k)=>{ const kind=SC_ARTS[m.type]; if(kind) add(paths[k],kind,''); }); });
+  })); })));
+ box.querySelectorAll('.vf-sc-pedal').forEach(g=>[...g.querySelectorAll('path')].forEach(p=>{ const r=p.getBoundingClientRect(); if(r.width) add(p,r.width>r.height*1.3?'ped':'pedup','',r); }));
+ box.querySelectorAll('svg text').forEach(x=>{ if(seen.has(x)||x.closest('.measure-number')) return; const s=(x.textContent||'').replace(/\s+/g,' ').trim(); if(!s) return;
+  const r=x.getBoundingClientRect();
+  if(SC_DYN.test(s)) add(x,'dyn',s,r); else if(/^[A-Z][0-9]?$/.test(s)&&x.closest('.vf-measure')) add(x,'rehearsal',s,r); else if(scoreTermParts(s).length) add(x,'text',s,r); });
+ box.querySelectorAll('svg .vf-curve').forEach(g=>add(g,'slur','',null,false));
+ box.querySelectorAll('svg .vf-stavetie').forEach(g=>add(g,'tie','',null,false));
+ box.querySelectorAll('svg .sc-xline').forEach(p=>add(p,p.dataset.kind,'',null,false));
+ box.querySelectorAll('svg .vf-clef').forEach(g=>{ const r=g.getBoundingClientRect(), q=r.height/Math.max(1,r.width); add(g,q>1.9?'clef_g':q<1.25?'clef_f':'clef_c','',r); });
+ const beatAt=r=>{ const g=SCORE.geo; if(!g) return null; const cx=r.left+r.width/2, cy=r.top+r.height/2;
+  for(const m of g.measures){ if(!m) continue; const sy=g.systems[m.sys], pe=g.pages[sy.page]; if(!pe) continue; const pr=pe.getBoundingClientRect(), ux=(cx-pr.left)/g.scale, uy=(cy-pr.top)/g.scale;
+   if(ux>=m.x0-.2&&ux<=m.x1&&uy>=sy.top-3&&uy<=sy.bottom+3) return m.b0; } return null; };
+ box.querySelectorAll('svg .vf-keysignature').forEach(g=>{ const r=g.getBoundingClientRect(), b=beatAt(r); if(b!=null) add(g,'key',anKeyName(anKeyAt(b+.001)),r); });
+ box.querySelectorAll('svg .vf-timesignature').forEach(g=>{ const r=g.getBoundingClientRect(), b=beatAt(r); if(b==null) return; const m=anMeasures().find(x=>x.start<=b+.001&&x.end>b+.001); if(m) add(g,'time',m.num+'/'+m.den,r); });
+ // An arpeggio's wavy line stands just left of its chord.
+ const rolls=new Map(); AN.notes.forEach((n,i)=>{ if(!n.arpeggiate) return; const k=n.staff+':'+n.start; if(!rolls.has(k)) rolls.set(k,[]); rolls.get(k).push(i); });
+ rolls.forEach(ix=>{ const rs=ix.flatMap(i=>(SCORE.heads.get(i)||[]).map(g=>g.getBoundingClientRect())).filter(r=>r.width); if(!rs.length) return;
+  const l=Math.min(...rs.map(r=>r.left)), t=Math.min(...rs.map(r=>r.top)), b=Math.max(...rs.map(r=>r.bottom)), w=rs[0].width;
+  add(null,'arpeggio','',{left:l-w*1.4,right:l-w*.15,top:t-w*.3,bottom:b+w*.3,width:w,height:b-t},true,(SCORE.heads.get(ix[0])||[])[0]); });
+}
+function scoreTermParts(s){
+ const out=[]; SC_TERMS.forEach(({k,re})=>{ const m=re.exec(s); if(m) out.push({at:m.index+m[1].length,k}); });
+ const metro=/[\u2669\u266A\u266B\u266C\uD834]\S*\s*\.?\s*=\s*(\d+)/.exec(s); if(metro) out.push({at:metro.index,k:'metro',n:metro[1]});
+ return out.sort((a,b)=>a.at-b.at).filter((p,i,a)=>!(p.k==='dolce'&&a.some(q=>q.k==='dolcissimo'))).map(p=>p.k==='metro'?t('sym_metro',p.n):t('sym_t_'+p.k));
+}
+// "Name — meaning": the tooltip heads with the symbol as printed (or its name) and #an-hover reads it as one line.
+function scoreSymText(sym){
+ const split=s=>{ const i=s.indexOf(' — '); return i<0?[s,'']:[s.slice(0,i),s.slice(i+3)]; };
+ const k=sym.kind, v=sym.val;
+ if(k==='text'){ const parts=scoreTermParts(v); return {head:v,body:parts.join(' · '),line:v+' · '+parts.join(' · ')}; }
+ let full;
+ if(k==='dyn') full=t('sym_dyn_'+(v==='sf'?'sfz':v==='sfp'?'fp':v));
+ else if(k==='finger'){ const ds=(v.match(/[1-5]/g)||[]); full=ds.length>1?t('sym_finger_sub',ds.join(', '),ds.map(d=>d+' = '+t('sym_f'+d)).join(', ')):ds.length?t('sym_finger',ds[0],t('sym_f'+ds[0])):t('sym_finger','?','?'); }
+ else if(k==='rehearsal') full=t('sym_rehearsal');
+ else if(k==='key') full=t('sym_key',v);
+ else if(k==='time'){ const [a,b]=v.split('/'); full=t('sym_time',a,b); }
+ else if(k==='chord') full=t('sym_chord');
+ else full=t('sym_'+k);
+ const [name,body]=split(full), lit=['dyn','finger','rehearsal','time','chord'].includes(k)?v:'';
+ return {head:lit?lit+' · '+name:name,body,line:(lit?lit+' · ':'')+full};
+}
+function scoreSymAt(e){
+ const box=$('an-roll'), list=SCORE.syms||[], el=e.target&&e.target.closest&&e.target.closest('#an-roll [data-sym]');
+ if(el&&list[+el.dataset.sym]&&list[+el.dataset.sym].el===el) return list[+el.dataset.sym];
+ if(e.clientX==null||!list.length) return null;
+ const rects=new Map(), pad=3; let best=null, area=Infinity;
+ list.forEach(s=>{ if(!s.loose) return; if(!rects.has(s.page)) rects.set(s.page,s.page.getBoundingClientRect()); const pr=rects.get(s.page), x=e.clientX-pr.left, y=e.clientY-pr.top;
+  if(x<s.x0-pad||x>s.x1+pad||y<s.y0-pad||y>s.y1+pad) return; const a=(s.x1-s.x0)*(s.y1-s.y0); if(a<area){ area=a; best=s; } });
+ return best;
+}
+// A small tooltip under the marking, inside the score panel; it never takes the pointer.
+function scoreTip(sym,txt){
+ const box=$('an-roll'); let tip=box&&box.querySelector(':scope > .sc-tip');
+ if(!sym){ if(tip) tip.hidden=true; return; }
+ if(!tip){ tip=document.createElement('div'); tip.className='sc-tip'; tip.setAttribute('role','tooltip'); tip.id='sc-tip'; box.appendChild(tip); }
+ tip.replaceChildren(Object.assign(document.createElement('b'),{textContent:txt.head}),Object.assign(document.createElement('span'),{textContent:txt.body}));
+ tip.hidden=false; tip.dataset.kind=sym.kind;
+ const br=box.getBoundingClientRect(), pr=sym.page.getBoundingClientRect(), ox=pr.left-br.left-box.clientLeft+box.scrollLeft, oy=pr.top-br.top-box.clientTop+box.scrollTop;
+ const w=tip.offsetWidth, h=tip.offsetHeight, minX=box.scrollLeft+4, maxX=box.scrollLeft+box.clientWidth-w-4;
+ let top=oy+sym.y1+8; if(top+h>box.scrollTop+box.clientHeight-4) top=Math.max(box.scrollTop+4,oy+sym.y0-h-8);
+ tip.style.left=Math.round(Math.max(minX,Math.min(maxX,ox+(sym.x0+sym.x1)/2-w/2)))+'px'; tip.style.top=Math.round(top)+'px';
+}
 // Geometry in OSMD units (one staff space) relative to each page: systems, measures and the onset anchors the cursor moves between.
 function scoreGeo(engine){
  const gs=engine.GraphicSheet, geo={scale:10*engine.Zoom,pages:[],systems:[],measures:[],anchors:[]}, sysIdx=new Map();
@@ -8674,16 +8916,26 @@ function anXmlTidy(doc,fallback){
   if(!cr){ cr=doc.createElement('creator'); cr.setAttribute('type','composer'); id.insertBefore(cr,id.firstElementChild); } cr.textContent=composer; }
  // 3. Credits the header already shows, and long editorial notes, leave the page; so do long words over the staves.
  const editorial=t=>t.length>=90||/(^|\s)(edi[cç][aã]o|edici[oó]n|edition|correc[cç]|correction|nota(s)? d[aoe]|editor'?s note|note de l'[ée]diteur)/i.test(t);
- credits.forEach(c=>{ const ty=ctype(c), t=cwords(c), raw=[...c.querySelectorAll('credit-words')].map(w=>w.textContent).join('\n');
-  if(ty==='title'||ty==='composer'||same(t,title)||same(t,composer)||(composerFromSubtitle&&ty==='subtitle')||editorial(t)||raw.split('\n').filter(s=>s.trim()).length>=3) c.remove(); });
- doc.querySelectorAll('direction > direction-type > words').forEach(w=>{ const t=text(w); if(!t||!(t.length>=60||editorial(t)||w.textContent.split('\n').filter(s=>s.trim()).length>=3)) return;
+ //    Version, arrangement and transcription notes ("Versão revista…", "arr. de…") go too when they read as a
+ //    footnote: a sentence rather than a label, or set low on the page / far under the bass staff, where they
+ //    would push the "Ped. … *" marks down.
+ const versionNote=/(^|[\s(\[])(vers[aã]o|versi[oó]n|version|vers\.|arr\.|arranj|arranged by|arrangement|transcr|adapt\.|adapta[cç]|adapted|revis[aã]o|revisi[oó]n|revised|revision)/i;
+ const yOf=el=>{ for(const a of ['default-y','relative-y']){ const v=parseFloat(el&&el.getAttribute(a)); if(!isNaN(v)) return v; } return NaN; };
+ const footnote=(t,low)=>versionNote.test(t)&&(t.length>=24||low);
+ credits.forEach(c=>{ const ty=ctype(c), t=cwords(c), raw=[...c.querySelectorAll('credit-words')].map(w=>w.textContent).join('\n'), cy=yOf(c.querySelector('credit-words'));
+  if(ty==='title'||ty==='composer'||same(t,title)||same(t,composer)||(composerFromSubtitle&&ty==='subtitle')||editorial(t)||footnote(t,cy<200)||raw.split('\n').filter(s=>s.trim()).length>=3) c.remove(); });
+ doc.querySelectorAll('direction > direction-type > words').forEach(w=>{ const t=text(w), y=yOf(w);
+  if(!t||!(t.length>=60||editorial(t)||footnote(t,y<=-80)||(t.length>=20&&y<=-90)||w.textContent.split('\n').filter(s=>s.trim()).length>=3)) return;
   const dt=w.parentElement, dir=dt.parentElement; w.remove(); if(dt.children.length) return;
   if([...dir.children].some(c=>c!==dt&&c.localName==='direction-type')) dt.remove(); else if(dir.querySelector(':scope > sound')) dt.appendChild(doc.createElement('words')); else dir.remove(); });
- // 4. A lone piano part, or a generic label, needs no instrument name at the left of the system.
+ // 4. Chord symbols sit above the upper staff: a <harmony> tied to the left hand would print between the staves,
+ //    on top of the dynamics and hairpins.
+ doc.querySelectorAll('harmony > staff').forEach(st=>{ if((parseInt(text(st))||1)>1) st.textContent='1'; });
+ // 5. A lone piano part, or a generic label, needs no instrument name at the left of the system.
  const parts=[...root.querySelectorAll('part-list > score-part')], generic=/^(p\s*\d*|instr\.?\s*p?\s*\d*|piano(forte)?|pian|pianoforte|klavier|grand piano|acoustic grand piano)$/i;
  parts.forEach(p=>{ const pn=one(p,'part-name'), pa=one(p,'part-abbreviation');
   if(pn&&(parts.length===1||!text(pn)||generic.test(text(pn)))){ pn.setAttribute('print-object','no'); if(pa) pa.setAttribute('print-object','no'); } });
- // 5. Pedal marks as "Ped. … *": OSMD draws line="yes" as a bracket under the bass staff, where fingering lives.
+ // 6. Pedal marks as "Ped. … *": OSMD draws line="yes" as a bracket under the bass staff, where fingering lives.
  //    It drops type="change" on text pedals, so a change becomes a release and a new press at the same moment.
  doc.querySelectorAll('direction-type > pedal').forEach(p=>{ const ty=p.getAttribute('type'); if(ty==='continue') return;
   p.setAttribute('line','no'); p.setAttribute('sign','yes');
@@ -8765,7 +9017,8 @@ function anSelectChord(k){ const seg=AN.view&&AN.view.segs[k]; if(!seg) return; 
  anSelectNotes(seg.notes,{kind:'chord',k},mi>=0?{a:mi,b:mi}:null); }
 function anClearSelection(){ if(!AN.selected.size&&!SCORE.mrange) return false; AN.selected.clear(); SCORE.mrange=null; anSelectionChanged(); return true; }
 function anDraw(){ if(!SCORE.xml) anRenderEmpty(); else if(SCORE.stale) scoreLayout(); else scorePaint(); if(FALL.mode==='fall') fallDraw(); anUpdateControls(); anLayoutVars(); }
-function anHover(e){const g=e.target.closest&&e.target.closest('#an-roll [data-i]');if(!g){$('an-hover').textContent='';return;}const n=AN.notes[+g.dataset.i];if(!n)return;const key=anKeyAt(n.start),group=AN.notes.filter(a=>a.start<=n.start+0.001&&a.end>n.start+0.001),chord=identifyChord(group.map(a=>a.midi)),seg=anSegAt(n.start),nct=seg&&seg.nct&&seg.nct.find(x=>x.note===n);
+// Hover (or focus) explains what is under the pointer: a note with its chord, or any other marking on the page.
+function anHover(e){const g=e.target.closest&&e.target.closest('#an-roll [data-i]');if(!g){const sym=scoreSymAt(e);if(!sym){$('an-hover').textContent='';scoreTip(null);return;}const txt=scoreSymText(sym);$('an-hover').textContent=txt.line;scoreTip(sym,txt);return;}scoreTip(null);const n=AN.notes[+g.dataset.i];if(!n)return;const key=anKeyAt(n.start),group=AN.notes.filter(a=>a.start<=n.start+0.001&&a.end>n.start+0.001),chord=identifyChord(group.map(a=>a.midi)),seg=anSegAt(n.start),nct=seg&&seg.nct&&seg.nct.find(x=>x.note===n);
  $('an-hover').textContent=spellName(n.midi,key,true)+' · '+t('an_bar')+' '+anMeasureAt(n.start).number+' · '+group.map(a=>spellName(a.midi,key,true)).join(' ')+' · '+(chord?spellName(60+chord.rootPc,key)+chord.chord.symbol+(chord.inversion>0?'/'+spellName(60+chord.bassPc,key):''):t('an_none'))+(nct?' · '+t('an_nct_'+nct.type):'');}
 // Click a notehead to select it (Shift/Ctrl adds), click empty space in a bar to select the bar (Shift extends the range),
 // drag for a marquee; a click outside every bar clears the selection.
@@ -9100,7 +9353,8 @@ function anInitControls(){
  const fc=$('fall-canvas'); fc.addEventListener('click',fallSelect); fc.addEventListener('pointermove',fallHover);
  fc.addEventListener('pointerdown',fallKeyDown); ['pointerup','pointercancel','pointerleave'].forEach(ev=>fc.addEventListener(ev,fallKeyUp));
  const roll=$('an-roll');
- roll.addEventListener('pointerdown',scorePointer); roll.addEventListener('pointerover',anHover); roll.addEventListener('pointerleave',()=>{$('an-hover').textContent='';}); roll.addEventListener('focusin',anHover);
+ roll.addEventListener('pointerdown',scorePointer); roll.addEventListener('pointerover',anHover); roll.addEventListener('pointerleave',()=>{$('an-hover').textContent='';scoreTip(null);});
+ let hoverRaf=0, hoverEv=null; roll.addEventListener('pointermove',e=>{ if(e.buttons) return; hoverEv=e; if(!hoverRaf) hoverRaf=requestAnimationFrame(()=>{ hoverRaf=0; if(hoverEv) anHover(hoverEv); }); }); roll.addEventListener('focusin',anHover);
  roll.addEventListener('keydown',e=>{const g=e.target.closest('[data-i]');if(!g)return;
   if(e.key==='Enter'||e.key===' '){e.preventDefault();const i=+g.dataset.i,add=e.shiftKey||e.ctrlKey||e.metaKey;if(!add)AN.selected.clear();if(add&&AN.selected.has(i))AN.selected.delete(i);else AN.selected.add(i);anSelectionChanged();return;}
   if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const d=e.key==='ArrowRight'?1:-1;for(let j=+g.dataset.i+d;j>=0&&j<AN.notes.length;j+=d){const n=(SCORE.heads.get(j)||[])[0];if(n){e.preventDefault();anRove(n);n.focus();anKeepVisible(n,false);break;}}}});
