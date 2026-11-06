@@ -9,16 +9,16 @@
 - Theory handbook, reading exercises, and score study
 - Targeted drills, accompaniment, sight-singing, and ear training
 - Free play, progress tracking, and practice planning
-- USB MIDI and direct Web Bluetooth MIDI support (e.g. Kawai ES120)
+- USB MIDI and direct Web Bluetooth MIDI support for compatible digital pianos and keyboards
 - Local browser storage for settings and progress, with backup export and import
 - Installable app shell (PWA) with offline support and Screen Wake Lock after an initial online visit
 
-## Digital piano setup (Kawai ES120 / MIDI)
+## Digital piano and MIDI keyboard setup
 
 1. Open [https://maurs9.github.io/etude/etude.html](https://maurs9.github.io/etude/etude.html) in **Google Chrome** or **Microsoft Edge** (Android, Windows, or macOS).
 2. In **Settings → App & screen**, click **Install** to install Étude as a standalone offline app and enable **Keep the screen on**.
 3. Connect your piano:
-   - **Bluetooth MIDI (wireless):** Turn on Bluetooth MIDI on your Kawai ES120 (disconnect it from other apps first), then go to **Settings → Bluetooth MIDI (direct) → Connect**.
+   - **Bluetooth MIDI (wireless):** If your piano or keyboard supports Bluetooth MIDI, turn it on (disconnect the instrument from other apps first), then go to **Settings → Bluetooth MIDI (direct) → Connect**.
    - **USB MIDI (wired):** Connect the piano's **USB to Host** port to your device via USB-C; it will appear automatically under **Settings → MIDI input**.
 
 ## Run locally

@@ -1916,7 +1916,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_midi_hint">On the Arturia MicroLab Mk3 keep Chord &amp; Hold OFF. No keyboard? Use the on-screen keys, mouse, or A–K / W–U (Z/X = octave).</p>
       <div class="set-row"><div class="lab"><span data-i18n="set_ble">Bluetooth MIDI (direct)</span> <small id="set-ble-status" role="status" aria-live="polite">Not connected</small></div>
         <span class="set-btns"><button class="btn sm ghost" id="set-ble-re" data-i18n="ble_reconnect" hidden>Reconnect</button><button class="btn sm" id="set-ble" data-i18n="ble_connect">Connect</button></span></div>
-      <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_ble_hint">For a Kawai ES120 or another Bluetooth-MIDI piano in Chrome or Edge on Android.</p>
+      <p class="lede" style="font-size:12px; margin-top:8px" data-i18n="set_ble_hint">For compatible Bluetooth MIDI pianos and keyboards in Chrome or Edge on Android.</p>
     </div>
 
     <div class="set-group">
@@ -3092,7 +3092,7 @@ Object.assign(STRINGS.ro,{
 /* Bluetooth MIDI, answering by ear on the keys, rhythm lengths & two hands, installed app & screen */
 Object.assign(STRINGS.en,{
   set_ble:'Bluetooth MIDI (direct)', ble_connect:'Connect', ble_disconnect:'Disconnect', ble_cancel_btn:'Cancel', ble_reconnect:'Reconnect', ble_off:'Not connected',
-  set_ble_hint:'For a Kawai ES120 or another Bluetooth-MIDI piano in Chrome or Edge on Android: the app talks to the piano directly over Web Bluetooth, with no MIDI app in between. Switch on the piano’s Bluetooth MIDI first and disconnect it from other apps. The MIDI input above keeps working alongside.',
+  set_ble_hint:'For compatible Bluetooth MIDI pianos and keyboards in Chrome or Edge on Android: the app connects directly to your instrument over Web Bluetooth, with no MIDI app in between. Switch on the instrument’s Bluetooth MIDI first and disconnect it from other apps. The MIDI input above keeps working alongside.',
   ble_unsupported:'Web Bluetooth isn’t available here — use Chrome or Edge on Android', ble_insecure:'Needs https or localhost',
   ble_choose:'Pick your piano in the Bluetooth list…', ble_cancel:'No piano chosen — press Connect to try again',
   ble_connecting:'Connecting to %s…', ble_on:'%s · Bluetooth', ble_lost:'%s dropped — reconnecting…', ble_gone:'%s disconnected — press Reconnect',
@@ -3133,7 +3133,7 @@ Object.assign(STRINGS.en,{
 });
 Object.assign(STRINGS.ro,{
   set_ble:'MIDI prin Bluetooth (direct)', ble_connect:'Conectează', ble_disconnect:'Deconectează', ble_cancel_btn:'Anulează', ble_reconnect:'Reconectează', ble_off:'Neconectat',
-  set_ble_hint:'Pentru un Kawai ES120 sau alt pian cu MIDI prin Bluetooth, în Chrome sau Edge pe Android: aplicația vorbește direct cu pianul prin Web Bluetooth, fără o aplicație MIDI intermediară. Pornește întâi MIDI-ul Bluetooth al pianului și deconectează-l din alte aplicații. Intrarea MIDI de mai sus funcționează în continuare.',
+  set_ble_hint:'Pentru piane și claviaturi compatibile cu MIDI prin Bluetooth, în Chrome sau Edge pe Android: aplicația se conectează direct la instrument prin Web Bluetooth, fără o aplicație MIDI intermediară. Activează întâi funcția Bluetooth MIDI a instrumentului și deconectează-l din alte aplicații. Intrarea MIDI de mai sus funcționează în continuare.',
   ble_unsupported:'Web Bluetooth nu e disponibil aici — folosește Chrome sau Edge pe Android', ble_insecure:'Necesită https sau localhost',
   ble_choose:'Alege pianul din lista Bluetooth…', ble_cancel:'Niciun pian ales — apasă Conectează ca să încerci din nou',
   ble_connecting:'Se conectează la %s…', ble_on:'%s · Bluetooth', ble_lost:'%s s-a deconectat — se reconectează…', ble_gone:'%s s-a deconectat — apasă Reconectează',
