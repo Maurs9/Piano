@@ -138,7 +138,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .nextup{font-size:13.5px; color:var(--muted)}
   .nextup b{color:var(--ink); font-weight:700}
   .hero-actions{display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px}
-  .why{font-size:12.5px; color:var(--faint); font-style:italic; font-family:var(--serif); display:flex; gap:7px; align-items:center}
+  .why{font-size:12.5px; color:var(--muted); font-style:italic; font-family:var(--serif); line-height:1.55}
+  #whyLink{white-space:nowrap}
 
   .btn{appearance:none; border:1px solid var(--line); background:var(--card); color:var(--ink); font-weight:600; font-size:15px;
     padding:11px 18px; border-radius:10px; cursor:pointer; transition:.15s; display:inline-flex; align-items:center; gap:8px}
@@ -1065,6 +1066,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   }
   [hidden]{display:none!important}   /* author display rules must not override the hidden attribute */
   .visually-hidden{position:absolute!important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+  .skip-link{position:fixed; top:8px; left:8px; z-index:60; transform:translateY(-150%); background:var(--paper); color:var(--ink); padding:10px 14px; border:2px solid var(--accent); border-radius:8px; transition:transform .15s}
+  .skip-link:focus{transform:translateY(0)}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:6px}
   /* ---------- coaching: one short, context-aware tip per surface (Reading focus · What to notice · Next step) ---------- */
   .coach{margin:10px 0 0; padding:9px 13px 10px; border-radius:10px; background:color-mix(in srgb, var(--ink) 4.5%, var(--card)); color:var(--ink2); font-size:13.5px; line-height:1.5; text-align:left; overflow-wrap:anywhere}
@@ -1244,10 +1247,11 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main" id="skipLink" data-i18n="skip_content">Skip to main content</a>
 <header>
   <div class="wrap bar">
     <a class="brand" href="#today" data-view="today"><span class="mark">Étude<b>.</b></span><span class="tag" id="brand-tag" data-i18n="brand_tag">ear &amp; hand</span></a>
-    <nav class="tabs" id="nav" role="tablist" aria-label="Sections" data-i18n-aria="nav_sections">
+    <nav class="tabs" id="nav" aria-label="Sections" data-i18n-aria="nav_sections">
       <button data-view="today" data-i18n="nav_today" aria-current="page">Today</button>
       <button data-view="learn" data-i18n="nav_learn">Learn</button>
       <button data-view="practice" data-i18n="nav_practice">Practice</button>
@@ -1255,15 +1259,15 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <button data-view="progress" data-i18n="nav_progress">Progress</button>
     </nav>
     <button class="midi-chip" id="midiChip"><span class="dot" id="midiDot"></span><span id="midiText">Connect MIDI</span></button>
-    <button class="iconbtn menu-btn" id="menuBtn" data-i18n-aria="menu" aria-label="Menu" aria-expanded="false">☰</button>
+    <button class="iconbtn menu-btn" id="menuBtn" data-i18n-aria="menu" aria-label="Menu" aria-expanded="false" aria-controls="mobileMenu">☰</button>
+    <div class="mobilemenu" id="mobileMenu" hidden></div>
     <button class="iconbtn" id="helpBtn" data-i18n-aria="help" aria-label="Help">?</button>
     <button class="iconbtn" id="settingsBtn" data-i18n-aria="settings" aria-label="Settings">⚙</button>
   </div>
-  <div class="mobilemenu" id="mobileMenu" hidden></div>
   <div role="status" aria-live="polite"><div class="hdr-note" id="audioLock" hidden><div class="wrap"><span data-i18n="audio_locked">Sound is off: the browser keeps audio locked until you click or press a key on this page. Notes from a MIDI or Bluetooth keyboard do not unlock it.</span><button type="button" class="btn sm" id="audioLockBtn" data-i18n="audio_unlock">Turn sound on</button></div></div><div class="hdr-note" id="syncNote" hidden><div class="wrap"><span data-i18n="sync_replaced">Progress was reset or restored in another tab, so this tab now uses that record. Anything you are doing here keeps going.</span><button type="button" class="btn sm ghost" id="syncNoteBtn" data-i18n="sync_ok">OK</button></div></div></div>
 </header>
 
-<main>
+<main id="main" tabindex="-1">
   <div class="wrap"><p id="piano-global-status" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin:-10px 0 26px"></p></div>
   <div class="wrap" id="modeBar" hidden><nav class="mode-nav" id="modeNav" aria-label="Sections" data-i18n-aria="nav_sections"></nav></div>
   <!-- ===================== TODAY ===================== -->
@@ -1888,10 +1892,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
 
 <!-- settings -->
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-label="Settings" data-i18n-aria="settings" aria-hidden="true" inert>
+<div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true" inert>
   <div class="drawer-in">
     <button class="iconbtn drawer-close" id="drawerClose" data-i18n-aria="close" aria-label="Close">✕</button>
-    <h2 data-i18n="settings">Settings</h2>
+    <h2 id="drawerTitle" data-i18n="settings">Settings</h2>
     <p class="lede" style="font-size:13px" data-i18n="set_lede">Everything is saved in this browser.</p>
 
     <div class="set-group">
@@ -1965,7 +1969,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <p class="lede" style="font-size:12px">Piano: <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Salamander Grand Piano v3 — Alexander Holm</a> · <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. MP3: <a href="https://github.com/Tonejs/audio/tree/master/salamander" target="_blank" rel="noopener">Tone.js</a>. <span data-i18n="piano_adapted">Recordings embedded; pitch, dynamics and release adapted during playback.</span></p>
     </div>
   </div>
-</aside>
+</div>
 
 <details class="osmd-lic"><summary>OpenSheetMusicDisplay — <span data-i18n="osmd_lic">license</span></summary><pre style="white-space:pre-wrap">Copyright 2019 PhonicScore
 
@@ -2100,6 +2104,7 @@ const STRINGS={
     c_due:'Due for review', c_new:'New today', c_mastered:'Mastered',
     nextup:'Up next:', nextup_none:'Nothing scheduled — explore freely or drill a topic.', of:'of', started:'started',
     start:'Start session', start_caught:'Practice anyway', place:'Quick placement · 2 min',
+    skip_content:'Skip to main content',
     why_link:'Why this works →',
     why_due:'Spaced repetition schedules each idea just before you’d forget it — that’s when review sticks best.',
     why_caught:'Come back tomorrow and your reviews will be waiting — spacing is what turns practice into memory.',
@@ -2472,6 +2477,7 @@ const STRINGS={
     c_due:'De repetat', c_new:'Noi azi', c_mastered:'Stăpânite',
     nextup:'Urmează:', nextup_none:'Nimic programat — explorează liber sau exersează un subiect.', of:'din', started:'începute',
     start:'Începe sesiunea', start_caught:'Exersează oricum', place:'Test de plasare · 2 min',
+    skip_content:'Sari la conținutul principal',
     why_link:'De ce funcționează →',
     why_due:'Repetiția eșalonată programează fiecare idee chiar înainte s-o uiți — atunci se fixează cel mai bine.',
     why_caught:'Revino mâine și repetițiile te vor aștepta — eșalonarea transformă exercițiul în memorie.',
@@ -4509,12 +4515,26 @@ let _view='today';
 function view0(){ return _view; }
 const NAV_GROUPS={today:['today'],learn:['learn','songs','method'],practice:['practice','read','sing','analysis'],explore:['explore','accompany','transcribe'],progress:['progress']};
 function navGroup(v){ return Object.keys(NAV_GROUPS).find(g=>NAV_GROUPS[g].includes(v)); }
+function closeMobileMenu(returnFocus=false){
+  const menu=$('mobileMenu');
+  if(!menu||menu.hidden) return false;
+  menu.hidden=true;
+  $('menuBtn').setAttribute('aria-expanded','false');
+  if(returnFocus) $('menuBtn').focus();
+  return true;
+}
 function renderModeNav(){
   const group=navGroup(view0()), views=NAV_GROUPS[group]||[];
   $('modeBar').hidden=views.length<2;
   $('modeNav').innerHTML=views.map(v=>`<button type="button" data-view="${v}" aria-current="${v===view0()?'page':'false'}">${t(v==='practice'?'nav_drills':'nav_'+v)}</button>`).join('');
 }
-function show(v){
+function focusView(v){
+  const view=$('view-'+v);
+  const target=[...view.querySelectorAll('h1,h2')].find(el=>el.getClientRects().length)||view;
+  target.tabIndex=-1;
+  target.focus({preventScroll:true});
+}
+function show(v,moveFocus=true){
   if(!navGroup(v)) return;
   const prev=_view;
   if(location.hash.slice(1)!==v){ try{ history[_routed?'pushState':'replaceState'](null,'','#'+v); }catch(_){} }
@@ -4531,7 +4551,7 @@ function show(v){
   document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current', b.dataset.view===navGroup(v)?'page':'false'));
   dockSync();
   if(dockShown()) reflowKeys();   // reposition once the dock is laid out
-  const mm=$('mobileMenu'); if(mm && !mm.hidden){ mm.hidden=true; $('menuBtn').setAttribute('aria-expanded','false'); }
+  closeMobileMenu();
   if(SES.active && v!==sesHome()){ /* leaving mid-session */ endSession(false); }
   if(v==='today' && !SES.active){ $('today-home').style.display='block'; $('summary').style.display='none'; refreshToday(); }
   if(v==='explore'){ updateExplore(); cofPaintDock(); }
@@ -4546,6 +4566,8 @@ function show(v){
   if(v==='practice' && !SES.active){ stopMetro(); renderPracticeLast(); }
   renderModeNav();
   syncIdle();   // a language/notation/label choice another tab made while this one was busy
+  const active=document.activeElement;
+  if(moveFocus&&(!active||active===document.body||!active.isConnected||!active.getClientRects().length)) focusView(v);
 }
 let _routed=false;
 window.addEventListener('popstate',()=>{ const v=location.hash.slice(1); if(navGroup(v) && v!==_view){ _routed=false; show(v); } });
@@ -9668,18 +9690,24 @@ function reflectSettingsUI(){
   document.querySelectorAll('#set-notation button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===notation?'true':'false'));
   document.querySelectorAll('#set-lang button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===lang?'true':'false'));
 }
-function syncScrim(){ $('scrim').classList.toggle('on', $('drawer').classList.contains('on')||$('helpBox').classList.contains('on')); }
+function overlaysOpen(){ return $('drawer').classList.contains('on')||$('helpBox').classList.contains('on'); }
+function syncScrim(){
+  const open=overlaysOpen();
+  $('scrim').classList.toggle('on',open);
+  document.querySelectorAll('body > #skipLink, body > header, body > main, body > #dock, body > details.osmd-lic, body > footer').forEach(el=>{ el.inert=open; });
+}
 // Closed overlays are only moved/faded out by CSS, so `inert` keeps their controls out of the Tab order;
 // opening moves focus inside, closing returns it to whatever opened the overlay.
 const overlayReturn=new Map();
 function setOverlay(el,o,firstId){ const was=el.classList.contains('on'), hadFocus=el.contains(document.activeElement);
   el.classList.toggle('on',o); el.setAttribute('aria-hidden',o?'false':'true'); el.inert=!o;
+  syncScrim();
   if(o&&!was){ overlayReturn.set(el,document.activeElement); requestAnimationFrame(()=>{ if(el.classList.contains('on')) $(firstId).focus(); }); }
-  else if(!o&&was){ const r=overlayReturn.get(el); overlayReturn.delete(el); if(hadFocus&&r&&r.isConnected&&typeof r.focus==='function') r.focus(); } }
+  else if(!o&&was){ const r=overlayReturn.get(el); overlayReturn.delete(el); if(!overlaysOpen()&&hadFocus&&r&&r.isConnected&&typeof r.focus==='function') r.focus(); } }
 function trapFocus(e){ if(e.key!=='Tab') return; const f=[...e.currentTarget.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.getClientRects().length); if(!f.length) return;
   const a=f[0], z=f[f.length-1]; if(e.shiftKey&&document.activeElement===a){ e.preventDefault(); z.focus(); } else if(!e.shiftKey&&document.activeElement===z){ e.preventDefault(); a.focus(); } }
-function openDrawer(o){ if(o) releaseLiveInput(); setOverlay($('drawer'),o,'drawerClose'); syncScrim(); }
-function openHelp(o){ if(o){ releaseLiveInput(); kbdLayoutLabels(); } setOverlay($('helpBox'),o,'helpClose'); syncScrim(); }
+function openDrawer(o){ if(o) releaseLiveInput(); setOverlay($('drawer'),o,'drawerClose'); }
+function openHelp(o){ if(o){ releaseLiveInput(); kbdLayoutLabels(); } setOverlay($('helpBox'),o,'helpClose'); }
 function applyNotation(){ const refR=$('refRoot').value, kc=$('keyCtx').value, sr=$('song-root').value, pk=$('pr-key').value;
   fillRoots($('refRoot'),false); fillRoots($('song-root'),false); fillRoots($('pr-key'),true); fillKeyCtx();
   $('refRoot').value=refR||0; $('song-root').value=sr||0; $('pr-key').value=pk||'all'; $('keyCtx').value=kc||'-1';
@@ -9701,6 +9729,7 @@ function accompRestartIfPlaying(){ if(accomp.on){ accompSync(); accompStart(); }
 
 function initControls(){
   labelSettingsControls();
+  $('skipLink').addEventListener('click',e=>{ e.preventDefault(); $('main').focus({preventScroll:true}); });
   // nav
   $('nav').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) show(b.dataset.view); });
   $('modeNav').addEventListener('click',e=>{ const b=e.target.closest('button[data-view]'); if(b) show(b.dataset.view); });
@@ -9729,9 +9758,9 @@ function initControls(){
   $('set-theme').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; theme=b.dataset.v; applyTheme(); saveAll(); });
   // mobile menu
   $('menuBtn').addEventListener('click',()=>{ const mm=$('mobileMenu');
-    if(mm.hidden){ mm.innerHTML=''; document.querySelectorAll('#nav button').forEach(b=>{ const x=document.createElement('button'); x.textContent=b.textContent; x.dataset.view=b.dataset.view; x.setAttribute('aria-current',b.getAttribute('aria-current')||'false'); x.addEventListener('click',()=>show(x.dataset.view)); mm.appendChild(x); }); mm.hidden=false; $('menuBtn').setAttribute('aria-expanded','true'); }
-    else { mm.hidden=true; $('menuBtn').setAttribute('aria-expanded','false'); } });
-  document.addEventListener('click',e=>{ const mm=$('mobileMenu'); if(mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn')){ mm.hidden=true; $('menuBtn').setAttribute('aria-expanded','false'); } });
+    if(mm.hidden){ mm.innerHTML=''; document.querySelectorAll('#nav button').forEach(b=>{ const x=document.createElement('button'); x.textContent=b.textContent; x.dataset.view=b.dataset.view; x.setAttribute('aria-current',b.getAttribute('aria-current')||'false'); x.addEventListener('click',()=>show(x.dataset.view)); mm.appendChild(x); }); mm.hidden=false; $('menuBtn').setAttribute('aria-expanded','true'); (mm.querySelector('[aria-current="page"]')||mm.querySelector('button')).focus(); }
+    else closeMobileMenu(true); });
+  document.addEventListener('click',e=>{ const mm=$('mobileMenu'); if(mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn')) closeMobileMenu(); });
   // backup export / import
   $('exportBtn').addEventListener('click',()=>{ saveAll(); const raw=localStorage.getItem(KEY)||'{}'; const d=new Date(), p2=n=>String(n).padStart(2,'0');
     trxDownload('etude-backup-'+d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'.json', new Blob([raw],{type:'application/json'})); });
@@ -9846,7 +9875,7 @@ function initControls(){
   // a hidden tab throttles timers and stops animation frames: timed playback, accompaniment, mic capture and drills stop cleanly (score playback pauses resumably)
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) panic(); });
   window.addEventListener('storage',e=>{ if(e.storageArea&&e.storageArea!==localStorage||e.key!==null&&e.key!==KEY) return; const got=syncPull(); if(got==='old'||got==='merge-save') syncWrite(); if(got) syncAfter(got); });   // another tab saved
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ openDrawer(false); openHelp(false); } });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(closeMobileMenu(true)){ e.preventDefault(); return; } openDrawer(false); openHelp(false); } });
   let rz=null; window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ const o=view.oct; chooseView(); if(view.oct!==o){ buildKeyboard(); repaintHeld(); } else positionBlacks(); },180); });
 }
 
@@ -9855,7 +9884,7 @@ loadAll();
 applyTheme();
 fillRoots($('refRoot'),false); fillRoots($('song-root'),false); fillRoots($('pr-key'),true); fillRefNames(); fillKeyCtx();
 chooseView(); buildKeyboard(); initPointer(); initControls(); initExploreTabs(); reflectSettingsUI(); renderCircle(); applyI18n(); anLocalize();
-show(navGroup(location.hash.slice(1))?location.hash.slice(1):'today');
+show(navGroup(location.hash.slice(1))?location.hash.slice(1):'today',false);
 saveAll(); // Persist the one-time migration from legacy synthetic timbres.
 autoReconnectMidi();
 bleAutoReconnect(); pwaInit(); wakeInit(); kbdLayoutLabels();
