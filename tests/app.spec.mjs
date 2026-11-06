@@ -91,6 +91,12 @@ test.describe('Settings drawer and Help dialog', () => {
     await page.locator('#settingsBtn').click();
     await expect(page.locator('#drawerClose')).toBeFocused();
     expect(await page.locator('#drawer').evaluate(el => el.inert)).toBe(false);
+    await expect(page.locator('#drawer')).toHaveAttribute('role', 'dialog');
+    await expect(page.locator('#drawer')).toHaveAttribute('aria-modal', 'true');
+    await expect(page.locator('#drawer')).toHaveAttribute('aria-labelledby', 'drawerTitle');
+    for (const selector of ['#skipLink', 'header', 'main', '#dock', 'details.osmd-lic', 'footer']) {
+      expect(await page.locator(selector).evaluate(el => el.inert), selector).toBe(true);
+    }
     // Tab cycles inside the open drawer instead of escaping to the page behind it.
     for (let i = 0; i < 60; i++) {
       await page.keyboard.press('Tab');
@@ -99,6 +105,7 @@ test.describe('Settings drawer and Help dialog', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#settingsBtn')).toBeFocused();
     expect(await page.locator('#drawer').evaluate(el => el.inert)).toBe(true);
+    expect(await page.locator('main').evaluate(el => el.inert)).toBe(false);
 
     await page.locator('#helpBtn').click();
     await expect(page.locator('#helpClose')).toBeFocused();
@@ -114,6 +121,71 @@ test.describe('Settings drawer and Help dialog', () => {
       await page.keyboard.press('Tab');
       const inside = await page.evaluate(() => ['drawer', 'helpBox'].some(id => document.getElementById(id).contains(document.activeElement)));
       expect(inside).toBe(false);
+    }
+  });
+});
+
+test.describe('Navigation accessibility', () => {
+  test('uses navigation semantics and moves focus to each destination', async ({ app }) => {
+    const page = await app.open();
+    expect(await page.locator('#nav').getAttribute('role')).toBeNull();
+
+    await page.locator('#tools button[data-view="read"]').click();
+    await expect(page.locator('#view-read h1')).toBeFocused();
+
+    await page.evaluate(() => show('today'));
+    await page.locator('#whyLink').click();
+    await expect(page.locator('#view-method h1')).toBeFocused();
+
+    await page.evaluate(() => show('learn'));
+    await page.locator('#modeNav button[aria-current="page"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#view-learn h1')).toBeFocused();
+  });
+
+  test('mobile menu follows its opener, focuses an option, and closes with Escape', async ({ app }) => {
+    const page = await app.open();
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#mobileMenu button').nth(1)).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await expect(page.locator('#menuBtn')).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await expect(page.locator('#greet-title')).toBeFocused();
+  });
+
+  test('skip link focuses main without changing the route, and supporting text stays readable on phones', async ({ app }) => {
+    const page = await app.open();
+    await page.locator('#skipLink').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('main')).toBeFocused();
+    await expect(page).toHaveURL(/etude\.html#today$/);
+
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 700 });
+      for (const lang of ['en', 'ro']) {
+        await page.evaluate(lang => setLang(lang), lang);
+        const layout = await page.locator('#whyLink').evaluate(link => {
+          const style = getComputedStyle(link), box = link.getBoundingClientRect();
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--accent)';
+          document.body.append(probe);
+          const accent = getComputedStyle(probe).color;
+          probe.remove();
+          return { color: style.color, accent, whiteSpace: style.whiteSpace, width: box.width, height: box.height };
+        });
+        expect(layout.whiteSpace).toBe('nowrap');
+        expect(layout.width).toBeGreaterThan(100);
+        expect(layout.height).toBeLessThan(30);
+        expect(layout.color).toBe(layout.accent);
+      }
     }
   });
 });
@@ -276,6 +348,108 @@ test.describe('MusicXML expression and engraving', () => {
     expect(r.words).toBe('Lento (\u2669 = 60)');
     expect(await page.evaluate(async () => { await anLoadExample(PIECES[0].id); return SCORE.fixedWidth; })).toBe(true);
   });
+});
+
+test.describe('Score Study engraving and symbol explanations', () => {
+  // A piano bar with an editorial footnote, a chord symbol on the lower staff, dolce, mp < mf, a pedal, stacked chord fingerings and a cross-staff slur.
+  const RICH = '<?xml version="1.0"?><score-partwise version="3.1"><work><work-title>Rich Test</work-title></work>' +
+    '<credit page="1"><credit-words default-y="80" font-size="8">Versão revista para piano solo, arr. de J. Silva</credit-words></credit>' +
+    '<part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">' +
+    '<measure number="1"><attributes><divisions>2</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes><direction placement="above"><direction-type><words>dolce</words></direction-type><staff>1</staff></direction><direction placement="below"><direction-type><dynamics><mp/></dynamics></direction-type><staff>1</staff></direction><direction placement="below"><direction-type><wedge type="crescendo"/></direction-type><staff>1</staff></direction><direction placement="below"><direction-type><pedal type="start" line="yes"/></direction-type><staff>2</staff></direction><harmony><root><root-step>C</root-step></root><kind>major</kind><staff>2</staff></harmony><note><pitch><step>C</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><technical><fingering>1</fingering></technical><slur type="start" number="1"/></notations></note><note><chord/><pitch><step>G</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><technical><fingering>4,5</fingering></technical></notations></note><note><pitch><step>E</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><technical><fingering>1</fingering></technical></notations></note><note><chord/><pitch><step>G</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><technical><fingering>3</fingering></technical></notations></note><note><chord/><pitch><step>C</step><octave>6</octave></pitch><duration>2</duration><voice>1</voice><type>quarter</type><stem>up</stem><staff>1</staff><notations><technical><fingering>5</fingering></technical></notations></note><direction placement="below"><direction-type><wedge type="stop"/></direction-type><staff>1</staff></direction><direction placement="below"><direction-type><dynamics><mf/></dynamics></direction-type><staff>1</staff></direction><note><pitch><step>D</step><octave>5</octave></pitch><duration>4</duration><voice>1</voice><type>half</type><staff>1</staff><notations><articulations><staccato/></articulations></notations></note><backup><duration>8</duration></backup><note><pitch><step>C</step><octave>3</octave></pitch><duration>4</duration><voice>5</voice><type>half</type><staff>2</staff></note><direction placement="below"><direction-type><pedal type="stop" line="yes"/></direction-type><staff>2</staff></direction><note><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>5</voice><type>half</type><staff>2</staff><notations><slur type="stop" number="1"/></notations></note></measure>' +
+    '</part></score-partwise>';
+  const load = async (page, src = RICH) => {
+    const token = await page.evaluate(() => AN.loadToken);
+    await page.locator('#an-file').setInputFiles({ name: 'rich.musicxml', mimeType: 'application/xml', buffer: Buffer.from(src) });
+    await page.waitForFunction(token => AN.loadToken > token && !AN.loading && !!document.querySelector('#an-roll svg') && SCORE.syms?.length > 0, token);
+  };
+
+  test('editorial "Versão…" notes are dropped and chord symbols move to the upper staff', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    const words = '<direction placement="below"><direction-type><words default-y="-110">Versão de concerto, revisão do editor</words></direction-type><staff>2</staff></direction>';
+    await load(page, RICH.replace('<harmony>', words + '<harmony>'));
+    const r = await page.evaluate(() => {
+      const doc = new DOMParser().parseFromString(SCORE.xml, 'application/xml');
+      return {
+        credits: [...doc.querySelectorAll('credit-words')].map(c => c.textContent),
+        words: [...doc.querySelectorAll('words')].map(w => w.textContent),
+        harmonyStaves: [...doc.querySelectorAll('harmony > staff')].map(s => s.textContent),
+        pedals: doc.querySelectorAll('pedal').length,
+        svg: [...document.querySelectorAll('#an-roll svg text')].map(t => t.textContent).join('|'),
+        links: AN.source.links.map(l => l.kind),
+      };
+    });
+    expect(r.credits.join('|')).not.toMatch(/Versão/);
+    expect(r.words).toEqual(['dolce']);
+    expect(r.harmonyStaves.every(s => s === '1')).toBe(true);
+    expect(r.pedals).toBe(2);
+    expect(r.svg).not.toMatch(/Versão|revisão/);
+    expect(r.links).toEqual(['slur']);   // the slur from the treble chord to the bass note crosses staves
+    await expect(page.locator('#an-roll svg path.sc-xline[data-kind="slur"]')).toHaveCount(1);
+  });
+
+  test('stacked chord fingerings such as "4,5" over "1" never collide with each other or the notes', async ({ app }) => {
+    const page = await app.open({ hash: 'analysis' });
+    await load(page);
+    const r = await page.evaluate(() => {
+      const ink = el => { const b = el.getBoundingClientRect(); return { l: b.left + b.width * .08, r: b.right - b.width * .08, t: b.top + b.height * .18, b: b.bottom - b.height * .2 }; };
+      const hit = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+      const fing = () => SCORE.syms.filter(s => s.kind === 'finger').map(s => ({ v: s.val, el: s.el, box: ink(s.el) }));
+      const heads = [...document.querySelectorAll('#an-roll svg .vf-notehead')].map(h => h.getBoundingClientRect()).map(b => ({ l: b.left, r: b.right, t: b.top, b: b.bottom }));
+      const clashes = () => { const f = fing(), out = [];
+        f.forEach((a, i) => f.slice(i + 1).forEach(b => { if (hit(a.box, b.box)) out.push(a.v + '/' + b.v); }));
+        f.forEach(a => heads.forEach(h => { if (hit(a.box, h)) out.push(a.v + '/head'); }));
+        return out; };
+      const engraved = clashes();
+      // Force the collision a crowded score produces: "4,5" printed right on top of the "1" of the same chord.
+      const [one, sub] = ['1', '4,5'].map(v => fing().find(f => f.v === v));
+      const text = sub.el.querySelector('text');
+      text.setAttribute('y', +text.getAttribute('y') + (one.box.t - sub.box.t) / text.ownerSVGElement.getScreenCTM().d);
+      const forced = clashes();
+      scoreFixFingerings($('an-roll'), SCORE.engine);
+      const after = fing(), a1 = after.find(f => f.el === one.el), a45 = after.find(f => f.el === sub.el);
+      return { values: after.map(f => f.v).sort(), engraved, forced, fixed: clashes(), stacked: a45.box.b <= a1.box.t };
+    });
+    expect(r.values).toEqual(['1', '1', '3', '4,5', '5']);
+    expect(r.engraved).toEqual([]);
+    expect(r.forced).toContain('1/4,5');
+    expect(r.fixed).toEqual([]);
+    expect(r.stacked).toBe(true);   // the upper-staff, stem-up chord pushes the extra label upwards
+  });
+
+  for (const [lang, expected] of [
+    ['en', { mp: 'moderately soft', mf: 'moderately loud', text: 'sweetly', cresc: 'volume grows gradually', ped: 'press the sustain', pedup: 'release the sustain', thumb: 'thumb', sub: 'finger change' }],
+    ['ro', { mp: 'moderat de încet', mf: 'moderat de tare', text: 'dulce', cresc: 'volumul crește treptat', ped: 'apasă pedala', pedup: 'ridică pedala', thumb: 'degetul mare', sub: 'schimbare de deget' }],
+  ]) {
+    test(`hovering dynamics, dolce, the hairpin, the pedal marks and fingerings explains them (${lang})`, async ({ app }) => {
+      const page = await app.open({ hash: 'analysis', lang });
+      await load(page);
+      const tip = page.locator('#an-roll .sc-tip');
+      const hover = async (kind, val, phrase) => {
+        const pt = await page.evaluate(([kind, val]) => {
+          const s = SCORE.syms.find(x => x.kind === kind && (val == null || x.val === val));
+          const b = s.el.getBoundingClientRect();
+          return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+        }, [kind, val]);
+        await page.mouse.move(pt.x, pt.y);
+        await expect(page.locator('#an-hover')).toContainText(phrase);
+        await expect(tip).toBeVisible();
+        await expect(tip).toContainText(phrase);
+      };
+      await hover('dyn', 'mp', expected.mp);
+      await hover('dyn', 'mf', expected.mf);
+      await hover('text', null, expected.text);
+      await hover('cresc', null, expected.cresc);
+      await hover('ped', null, expected.ped);
+      await hover('pedup', null, expected.pedup);
+      await hover('finger', '1', expected.thumb);
+      await hover('finger', '4,5', expected.sub);
+      await page.evaluate(() => SCORE.syms.find(s => s.kind === 'dyn' && s.val === 'mp').el.focus());
+      await expect(page.locator('#an-hover')).toContainText(expected.mp);
+      await expect(tip).toBeVisible();
+      await page.mouse.move(1, 1);
+      await expect(tip).toBeHidden();
+    });
+  }
 });
 
 test('the volume slider is audible even if a backup restored the hidden "muted" flag', async ({ app }) => {
