@@ -758,6 +758,26 @@ test('Explore staff: bass left and treble right in one fixed frame; far notes ar
   }
 });
 
+test('finger numbers on the white keys stay clear of the black keys and the note names, also in the compact landscape dock', async ({ app, page }) => {
+  for (const viewport of [{ width: 844, height: 390 }, { width: 740, height: 360 }, { width: 1194, height: 834 }]) {
+    await page.setViewportSize(viewport);
+    await app.open({ hash: 'explore' });
+    const clashes = await page.evaluate(() => {
+      [55, 60, 64].forEach(m => handleNoteOn(m, 100, 'pointer'));
+      const blacks = [...document.querySelectorAll('#keys .black')].map(el => el.getBoundingClientRect());
+      const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      const badges = [...document.querySelectorAll('#keys .white .dg')].filter(el => el.textContent);
+      return { count: badges.length, clashes: badges.flatMap(el => {
+        const r = el.getBoundingClientRect(), lbl = el.parentElement.querySelector('.lbl');
+        return [...blacks.filter(b => hit(r, b)).map(() => `${el.textContent} under a black key`),
+          ...(lbl && lbl.textContent && hit(r, lbl.getBoundingClientRect()) ? [`${el.textContent} over ${lbl.textContent}`] : [])];
+      }) };
+    });
+    expect(clashes.count, `${viewport.width}×${viewport.height}`).toBe(3);
+    expect(clashes.clashes, `${viewport.width}×${viewport.height}`).toEqual([]);
+  }
+});
+
 // ---- .mxl archives built on the fly ----
 // files: { name, data, store?, flags?, size? }. `size` replaces the declared unpacked size: a number, or { zip64: n } to declare it in a
 // ZIP64 extra field. `links` lists indexes into files that get one more central-directory record pointing at the same stored data.
