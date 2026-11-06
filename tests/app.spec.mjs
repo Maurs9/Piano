@@ -644,6 +644,117 @@ test('Explore "Show" does not clear another view\'s keyboard targets after navig
   expect(await page.evaluate(() => keyEl.get(foldToView(60)).dataset.s)).toBe('target');
 });
 
+for (const lang of ['en', 'ro']) {
+  test(`Today adapts its session and plan to the available width (${lang})`, async ({ app, page }) => {
+    await page.setViewportSize({width: 1600, height: 1000});
+    await app.open({lang});
+    const bounds=() => page.evaluate(() => {
+      const hero=document.querySelector('#today-home .hero').getBoundingClientRect();
+      const plan=document.querySelector('#today-plan').getBoundingClientRect();
+      const wrap=document.querySelector('#today-home').getBoundingClientRect();
+      return {hero:{left:hero.left,right:hero.right,top:hero.top,bottom:hero.bottom},plan:{left:plan.left,right:plan.right,top:plan.top},width:wrap.width,overflow:document.documentElement.scrollWidth>innerWidth};
+    });
+    let r=await bounds();
+    expect(r.width).toBeGreaterThan(1240);
+    expect(r.hero.right).toBeLessThan(r.plan.left);
+    expect(Math.abs(r.hero.top-r.plan.top)).toBeLessThanOrEqual(2);
+    expect(r.overflow).toBe(false);
+    await page.setViewportSize({width: 1024, height: 768});
+    r=await bounds();
+    expect(r.hero.right).toBeLessThan(r.plan.left);
+    expect(r.overflow).toBe(false);
+    await page.setViewportSize({width: 900, height: 800});
+    r=await bounds();
+    expect(r.plan.top).toBeGreaterThanOrEqual(r.hero.bottom);
+    expect(r.overflow).toBe(false);
+    await page.locator('#startBtn').click();
+    await expect(page.locator('#session')).toBeVisible();
+    const before=await page.evaluate(() => ({active:SES.active,index:SES.idx,prompt:$('q-prompt').textContent}));
+    await page.setViewportSize({width: 1600, height: 1000});
+    await expect(page.locator('#session')).toBeVisible();
+    await expect(page.locator('#ses-end')).toBeVisible();
+    expect(await page.evaluate(() => ({active:SES.active,index:SES.idx,prompt:$('q-prompt').textContent}))).toEqual(before);
+  });
+}
+
+test('wide practice and score surfaces use available space while Learn text remains readable', async ({ app, page }) => {
+  await page.setViewportSize({width: 1920, height: 1000});
+  await app.open();
+  for (const view of ['practice', 'read', 'analysis', 'explore']) {
+    await page.evaluate(view => show(view), view);
+    const r=await page.locator(`#view-${view} > .wrap`).boundingBox();
+    expect(r.width,view).toBeGreaterThan(1480);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth<=innerWidth),view).toBe(true);
+  }
+  expect((await page.locator('#dock > .wrap').boundingBox()).width).toBeGreaterThan(1480);
+  await page.evaluate(() => show('learn'));
+  expect((await page.locator('#view-learn > .wrap').boundingBox()).width).toBeLessThanOrEqual(1240);
+});
+
+for (const lang of ['en', 'ro']) {
+  test(`responsive breakpoints keep all views within the viewport (${lang})`, async ({ app, page }) => {
+    await app.open({lang});
+    for (const width of [320, 959, 960, 980, 981, 999, 1000, 1024, 1440]) {
+      await page.setViewportSize({width,height:800});
+      await page.waitForTimeout(180);   // the app debounces resize work by 100ms
+      for (const view of VIEWS) {
+        await page.evaluate(view => show(view), view);
+        const dimensions=await page.evaluate(() => ({scroll:document.documentElement.scrollWidth,visible:document.documentElement.clientWidth}));
+        expect(dimensions.scroll,`${lang}, ${view}, ${width}px`).toBeLessThanOrEqual(dimensions.visible+1);
+      }
+    }
+  });
+}
+
+for (const lang of ['en', 'ro']) {
+  test(`a populated Practice session survives resizing and keeps its controls reachable (${lang})`, async ({ app, page }) => {
+    await page.setViewportSize({width:1920,height:1000});
+    await app.open({hash:'practice',lang});
+    await page.locator('#pr-start').click();
+    await expect(page.locator('#session')).toBeVisible();
+    const before=await page.evaluate(() => ({active:SES.active,index:SES.idx,prompt:$('q-prompt').textContent}));
+    for(const width of [1024,390,320,1920]){
+      await page.setViewportSize({width,height:800});
+      await page.waitForTimeout(180);   // inspect controls after the resize handler settles
+      await expect.poll(() => page.evaluate(() => ({active:SES.active,index:SES.idx,prompt:$('q-prompt').textContent}))).toEqual(before);
+      await page.locator('#q-reveal').scrollIntoViewIfNeeded();
+      await expect.poll(() => page.locator('#q-reveal').evaluate(el => {
+        const r=el.getBoundingClientRect(), hit=document.elementFromPoint((r.left+r.right)/2,(r.top+r.bottom)/2);
+        return !!hit && (hit===el || el.contains(hit));
+      })).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
+    }
+    await page.locator('#q-reveal').click();
+    await expect(page.locator('#q-next')).toBeVisible();
+    expect(await page.evaluate(() => SES.total)).toBe(1);
+    await page.locator('#q-next').click();
+    await expect(page.locator('#q-reveal')).toBeVisible();
+    expect(await page.evaluate(() => SES.active)).toBe(true);
+  });
+
+  test(`a loaded score stays above the keyboard after resizing (${lang})`, async ({ app, page }) => {
+    await page.setViewportSize({width:1920,height:1000});
+    await app.open({hash:'analysis',lang});
+    await page.locator('#an-roll .an-ex').first().click();
+    await page.waitForFunction(() => !AN.loading && AN.notes.length>0 && !!document.querySelector('#an-roll svg'));
+    const before=await page.evaluate(() => ({id:AN.source.id,notes:AN.notes.length}));
+    await page.setViewportSize({width:390,height:844});
+    await expect.poll(() => page.evaluate(() => {
+      const score=$('an-roll').getBoundingClientRect(), work=$('an-work').getBoundingClientRect(), dock=$('dock').getBoundingClientRect();
+      const hit=document.elementFromPoint((score.left+score.right)/2,score.bottom-5);
+      return work.bottom<=dock.top+1 && !!hit && (hit===$('an-roll') || $('an-roll').contains(hit));
+    })).toBe(true);
+    expect(await page.evaluate(() => ({id:AN.source.id,notes:AN.notes.length}))).toEqual(before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth<=document.documentElement.clientWidth+1)).toBe(true);
+    // Do not pull the user back to the score when they have scrolled below it.
+    await page.evaluate(() => window.scrollTo(0,document.documentElement.scrollHeight));
+    expect(await page.locator('#an-stage').evaluate(el => el.getBoundingClientRect().top)).toBeLessThan(0);
+    await page.setViewportSize({width:410,height:844});
+    await page.waitForTimeout(180);
+    expect(await page.locator('#an-stage').evaluate(el => el.getBoundingClientRect().top)).toBeLessThan(0);
+  });
+}
+
 test('320px phone: no view scrolls sideways and the Explore staff fits its panel', async ({ app, page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await app.open();

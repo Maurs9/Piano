@@ -37,6 +37,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     --sans:'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --rad:12px;
     --page-max:1240px;
+    --work-max:1680px;
     --page-gutter:clamp(16px, 2.5vw, 32px);
   }
   :root[data-theme=dark]{
@@ -75,7 +76,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   a{color:var(--accent)}
   button{font-family:inherit}
   .wrap{width:100%; max-width:var(--page-max); margin:0 auto; padding-inline:var(--page-gutter)}
-  #view-analysis .wrap{max-width:1480px}
+  /* Give interactive workspaces more room without stretching reading-heavy pages. */
+  header .bar,header .hdr-note .wrap,main > .wrap,#view-today > .wrap,#view-practice > .wrap,
+  #view-read > .wrap,#view-explore > .wrap,#dock > .wrap{max-width:var(--work-max)}
+  #view-analysis > .wrap{max-width:1760px}
 
   /* ---------- top bar ---------- */
   header{position:sticky; top:0; z-index:40; background:var(--headbg); backdrop-filter:blur(10px);
@@ -126,6 +130,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .goaldots i.on{background:var(--gold)}
 
   .hero{margin-top:24px; border:1px solid var(--line); border-radius:16px; background:var(--card); box-shadow:var(--shadow); overflow:hidden}
+  .today-overview{display:grid; gap:22px; margin-top:24px}
+  .today-overview .hero,.today-overview .plan{margin-top:0; min-width:0}
+  @media (min-width:960px){
+    .today-overview{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); align-items:stretch}
+    .today-overview .plan-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
   .hero-top{padding:26px 28px; position:relative}
   .hero-top::before{content:""; position:absolute; inset:0 0 auto 0; height:9px; background:
      linear-gradient(var(--line),var(--line)) 0 2px/100% 1px,
@@ -1319,6 +1329,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         </div>
       </div>
 
+      <div class="today-overview">
       <div class="hero">
         <div class="hero-top">
           <h2 id="hero-title">Your session</h2>
@@ -1342,6 +1353,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
         <div class="plan-head"><div><h2 id="plan-h" data-i18n="plan_title">Today’s plan</h2><span class="sub" id="plan-sub"></span></div><button type="button" class="btn sm" id="plan-continue" hidden></button></div>
         <ul class="plan-list" id="plan-list"></ul>
       </section>
+      </div>
 
       <hr class="rule" />
       <div class="eyebrow" data-i18n="drill_eyebrow">Or drill one focus</div>
@@ -10034,7 +10046,12 @@ function handleScreenChange(){
     else positionBlacks();
     if(dockShown()) reflowKeys();
     if(view0()==='read'&&SR.piece) srDraw();
-    if(view0()==='analysis'&&window.anLayoutVars){ anLayoutVars(); anStageFit(); }
+    if(view0()==='analysis'&&window.anLayoutVars){
+      anLayoutVars(); anStageFit();
+      // Re-align a visible score obscured by the dock, not a user reading elsewhere.
+      const work=$('an-work').getBoundingClientRect(), dock=$('dock').getBoundingClientRect();
+      if(AN.notes.length && document.body.classList.contains('kb') && work.top<dock.top && work.bottom>dock.top && work.bottom>0) anFocusStage();
+    }
   },100);
 }
 window.addEventListener('resize',handleScreenChange);
