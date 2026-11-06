@@ -499,6 +499,39 @@ test('320px phone: no view scrolls sideways and the Explore staff fits its panel
   expect(fit).toBe(true);
 });
 
+test('Explore staff: clefs sit on their lines and the two staves never overlap, whatever is held', async ({ app }) => {
+  const page = await app.open({ hash: 'explore' });
+  const chords = [[], [53], [60], [60, 64, 67], [21, 108], [36, 40, 43, 84, 88, 91], [59, 60, 62, 64, 65], [61, 63, 66, 68, 70], [52, 53, 55, 57, 59, 60, 62, 64]];
+  for (const c of chords) {
+    const r = await page.evaluate(c => {
+      drawExploreStaff(c, false);
+      const svg = $('ex-staff').querySelector('svg'), lines = [...svg.querySelectorAll('.ss-line')].map(l => +l.getAttribute('y1'));
+      const m = svg.getScreenCTM().inverse(), clefs = [...svg.querySelectorAll('path.ss-clef')];
+      const box = el => { const r = el.getBoundingClientRect(), a = new DOMPoint(r.left, r.top).matrixTransform(m), b = new DOMPoint(r.right, r.bottom).matrixTransform(m);
+        return { y: a.y, height: b.y - a.y }; };
+      const staffBox = (i, clef) => { const els = [clefs[i], ...svg.querySelectorAll(`.ss-n[data-clef="${clef}"]`)].map(box);
+        return { top: Math.min(lines[i * 5], ...els.map(b => b.y)), bottom: Math.max(lines[i * 5 + 4], ...els.map(b => b.y + b.height)) }; };
+      const ledgers = [...svg.querySelectorAll('.ss-ledger')].map(l => l.getAttribute('y1'));
+      // Scan a vertical line through the F clef's dots (its right edge) to find where each dot is filled.
+      const f = clefs[1], fm = f.transform.baseVal.consolidate().matrix, fb = f.getBBox(), inv = fm.inverse();
+      const dotX = fm.a * (fb.x + fb.width) + fm.e - 2, dots = [];
+      for (let y = lines[5] - 12; y <= lines[9] + 12; y += 0.25)
+        if (f.isPointInFill(new DOMPoint(dotX, y).matrixTransform(inv))) { const d = dots[dots.length - 1]; d && y - d[1] < 0.5 ? d[1] = y : dots.push([y, y]); }
+      return { treble: staffBox(0, 'treble'), bass: staffBox(1, 'bass'), fLine: lines[6], dots, f3: svg.querySelector('.ss-n[data-midi="53"][data-clef="bass"] ellipse')?.getAttribute('cy'),
+        dupLedgers: ledgers.length - new Set(ledgers).size, height: svg.viewBox.baseVal.height };
+    }, c);
+    expect(r.treble.bottom, String(c)).toBeLessThan(r.bass.top);
+    expect(r.bass.bottom, String(c)).toBeLessThanOrEqual(r.height);
+    // The F clef's two dots sit in the spaces either side of the F line (fourth from the bottom, where F3 is written).
+    expect(r.dots.length, String(c)).toBe(2);
+    expect(r.dots[0][1], String(c)).toBeLessThan(r.fLine);
+    expect(r.dots[1][0], String(c)).toBeGreaterThan(r.fLine);
+    expect(Math.abs((r.dots[0][1] + r.dots[1][0]) / 2 - r.fLine), String(c)).toBeLessThan(1.5);
+    if (c.includes(53)) expect(+r.f3).toBe(r.fLine);
+    expect(r.dupLedgers, String(c)).toBe(0);
+  }
+});
+
 // ---- .mxl archives built on the fly ----
 // files: { name, data, store?, flags?, size? }. `size` replaces the declared unpacked size: a number, or { zip64: n } to declare it in a
 // ZIP64 extra field. `links` lists indexes into files that get one more central-directory record pointing at the same stored data.
