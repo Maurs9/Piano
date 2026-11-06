@@ -2,7 +2,7 @@
 
 Étude is a browser-based piano theory and practice app for developing your ear, reading skills, and keyboard technique. The app is contained in a single HTML file and does not need a build step.
 
-**Live app:** [https://maurs9.github.io/Piano/piano-theory-trainer.html](https://maurs9.github.io/Piano/piano-theory-trainer.html)
+**Live app:** [https://maurs9.github.io/etude/piano-theory-trainer.html](https://maurs9.github.io/etude/piano-theory-trainer.html)
 
 ## Features
 
@@ -15,7 +15,7 @@
 
 ## Digital piano setup (Kawai ES120 / MIDI)
 
-1. Open [https://maurs9.github.io/Piano/piano-theory-trainer.html](https://maurs9.github.io/Piano/piano-theory-trainer.html) in **Google Chrome** or **Microsoft Edge** (Android, Windows, or macOS).
+1. Open [https://maurs9.github.io/etude/piano-theory-trainer.html](https://maurs9.github.io/etude/piano-theory-trainer.html) in **Google Chrome** or **Microsoft Edge** (Android, Windows, or macOS).
 2. In **Settings → App & screen**, click **Install** to install Étude as a standalone offline app and enable **Keep the screen on**.
 3. Connect your piano:
    - **Bluetooth MIDI (wireless):** Turn on Bluetooth MIDI on your Kawai ES120 (disconnect it from other apps first), then go to **Settings → Bluetooth MIDI (direct) → Connect**.
