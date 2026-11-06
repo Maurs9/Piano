@@ -4,8 +4,8 @@
    - The manifest and icons come from the cache and are refreshed in the background.
    - Bump VERSION when this file's caching rules change; old caches are removed when the new worker activates. */
 'use strict';
-const VERSION = 'etude-shell-v1';
-const SHELL = 'piano-theory-trainer.html';
+const VERSION = 'etude-shell-v2';
+const SHELL = 'etude.html';
 const ASSETS = ['manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 const NETWORK_TIMEOUT_MS = 8000;
 

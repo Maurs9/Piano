@@ -1,11 +1,11 @@
 {
-  "id": "./piano-theory-trainer.html",
+  "id": "./etude.html",
   "name": "Étude — piano theory trainer",
   "short_name": "Étude",
   "description": "A piano theory method for the ear and hand: spaced repetition, ear training, MIDI and Bluetooth MIDI, sight-reading and rhythm.",
   "lang": "en",
   "dir": "ltr",
-  "start_url": "./piano-theory-trainer.html",
+  "start_url": "./etude.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

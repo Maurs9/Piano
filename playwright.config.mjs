@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     command: `python3 -m http.server ${PORT} --bind 127.0.0.1`,
-    url: `http://127.0.0.1:${PORT}/piano-theory-trainer.html`,
+    url: `http://127.0.0.1:${PORT}/etude.html`,
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
     stderr: 'ignore',

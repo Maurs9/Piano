@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 
 // APP_FILE lets the suite run against another copy of the app (e.g. an older revision, to confirm a test catches a bug).
-export const APP = process.env.APP_FILE || 'piano-theory-trainer.html';
+export const APP = process.env.APP_FILE || 'etude.html';
 
 // Opens the app with an optional saved state (the `ptt-v3` localStorage record) and records uncaught page errors.
 export const test = base.extend({
