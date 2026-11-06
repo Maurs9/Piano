@@ -14,7 +14,7 @@ export default defineConfig({
     launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
   },
   webServer: {
-    command: `python3 -m http.server ${PORT} --bind 127.0.0.1`,
+    command: `${process.platform === 'win32' ? 'python' : 'python3'} -m http.server ${PORT} --bind 127.0.0.1`,
     url: `http://127.0.0.1:${PORT}/etude.html`,
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
