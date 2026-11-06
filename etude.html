@@ -333,7 +333,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .dock.is-rail .dock-rail-note{display:block}
   .dock.is-rail{padding:6px 0}
   .dock.is-rail .dock-kb-toggle svg{transform:rotate(180deg)}
-  .dock.is-rail #piano-status,.dock.is-rail .legend,.dock.is-rail #oct-down,.dock.is-rail .oct-ind,.dock.is-rail #oct-up,.dock.is-rail #panicBtn,.dock.is-rail .kbscroll{display:none}
+  .dock.is-rail #piano-status,.dock.is-rail .legend,.dock.is-rail #oct-down,.dock.is-rail .oct-ind,.dock.is-rail #oct-up,.dock.is-rail #panicBtn,.dock.is-rail .kbscroll,.dock.is-rail #kb-pan{display:none}
   .dock.is-opening .kbscroll{animation:dock-keys-in .2s cubic-bezier(.05,.7,.1,1)}
   @keyframes dock-keys-in{from{opacity:0; transform:translateY(12px)}}
   /* phones: one tools row (the colour legend would wrap into a tall column) and no rail note */
@@ -342,11 +342,12 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
      (the rail when the keys are hidden), and focus or in-page scrolling never parks an element beneath it */
   body.kb{padding-bottom:var(--dock-h)}
   body.kb main{padding-bottom:40px}
-  html{scroll-padding-bottom:var(--dock-h)}
+  html{scroll-padding-top:calc(var(--hdr-h, 62px) + 8px); scroll-padding-bottom:var(--dock-h)}
   .legend{display:flex; gap:12px; flex-wrap:wrap}
   .lg{display:inline-flex; align-items:center; gap:5px}
   .sw{width:13px; height:13px; border-radius:4px; border:1px solid var(--line); display:inline-grid; place-items:center; font-size:8px; font-weight:900}
   .kbscroll{overflow-x:auto; overflow-y:hidden}
+  #kb-pan{width:calc(100% - 32px); height:24px; margin:0 16px; touch-action:pan-x}
   .keys{position:relative; height:118px; display:flex; gap:2px; min-width:100%; touch-action:none; user-select:none}
   .key{padding:0; cursor:pointer}
   .white{position:relative; flex:1 1 0; min-width:26px; border:1px solid var(--line2); border-top:none; border-radius:0 0 6px 6px;
@@ -1079,7 +1080,9 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .coach:empty{display:none}
   .rdx-coach{max-width:640px; margin:18px auto 2px}
   @media (prefers-reduced-motion: reduce){ *{transition:none!important; animation:none!important} }
-  @media (max-width:680px){ nav.tabs{display:none} .menu-btn{display:grid} .wrap{padding-inline:16px} .keys{height:104px} }
+  @media (max-width:760px){ nav.tabs{display:none} .menu-btn{display:grid} }
+  @media (max-width:680px){ .wrap{padding-inline:16px} .keys{height:104px} }
+  @media (max-width:480px){ .dock-tools{flex-wrap:wrap; gap:6px} .dock-tools > span[style]{display:none} }
   /* ---- Reading drills (V3) ---- */
   .rdx-tabs{display:flex; gap:4px; flex-wrap:wrap; margin:18px 0 14px; border-bottom:1px solid var(--line)}
   .rdx-tabs [role=tab]{appearance:none; border:none; background:none; color:var(--muted); font:inherit; font-weight:650; font-size:14.5px; padding:10px 14px 11px; cursor:pointer; border-bottom:2.5px solid transparent; margin-bottom:-1px; border-radius:8px 8px 0 0}
@@ -1896,12 +1899,14 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
       <button class="btn sm ghost" id="panicBtn" title="Stop all sound" data-i18n="panic" data-i18n-title="panic_t">Panic</button>
       <button type="button" class="btn sm dock-kb-toggle" id="dock-kb-toggle" aria-expanded="true" aria-controls="dock-keys"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 6 4.5 4.5L12.5 6"/></svg><span class="dock-kb-label">Hide keyboard</span></button>
     </div>
+    <input type="range" id="kb-pan" min="0" max="0" value="0" aria-label="Scroll keyboard horizontally" data-i18n-aria="aria_kbpan" hidden>
     <div class="kbscroll" id="dock-keys"><div class="keys" id="keys" role="group" aria-label="On-screen piano keyboard" data-i18n-aria="aria_keys"></div></div>
   </div>
 </div>
 
 <!-- help -->
 <div class="helpbox" id="helpBox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="helpTitle" inert>
+  <button class="btn sm" id="helpClose" data-i18n="close" style="float:right; margin-left:12px">Close</button>
   <h2 id="helpTitle" data-i18n="help_title">Shortcuts &amp; input</h2>
   <p class="lede" data-i18n="help_sub">Everything works with mouse, touch, computer keys or a MIDI keyboard.</p>
   <div class="hk"><kbd data-i18n="hk_mouse_k">Click / drag</kbd><span data-i18n="hk_mouse">Play the on-screen keys — drag for glissando</span></div>
@@ -1917,7 +1922,6 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   <div class="hk"><kbd>F / J</kbd><span data-i18n="hk_fj">Two-hand rhythm drills: left / right hand (Space = right)</span></div>
   <div class="hk"><kbd>MIDI</kbd><span data-i18n="hk_midi">Sustain pedal, pitch bend &amp; mod wheel supported</span></div>
   <div class="hk"><kbd>BLE</kbd><span data-i18n="hk_ble">Bluetooth MIDI pianos connect from Settings (Chrome / Edge on Android)</span></div>
-  <div class="row" style="justify-content:flex-end; margin-top:14px"><button class="btn sm" id="helpClose" data-i18n="close">Close</button></div>
 </div>
 
 <!-- settings -->
@@ -2900,7 +2904,7 @@ function songsFor(semi,dir){ const src=lang==='ro'?SONGS_RO:SONGS; return (src[s
 /* V3 pages: strings for Today plan, Learn progress, Songs ear check, Progress, a11y labels */
 Object.assign(STRINGS.en,{
   aria_chapters:'Chapters', aria_mode:'Mode', aria_hands:'Hands', aria_tempo:'Tempo', aria_staff:'Music staff', aria_exstaff:'Treble and bass clef notation',
-  aria_refroot:'Reference root', aria_refname:'Chord or scale', aria_dir:'Direction', aria_octdown:'Shift keyboard down an octave', aria_octup:'Shift keyboard up an octave',
+  aria_refroot:'Reference root', aria_refname:'Chord or scale', aria_dir:'Direction', aria_octdown:'Shift keyboard down an octave', aria_octup:'Shift keyboard up an octave', aria_kbpan:'Scroll keyboard horizontally',
   panic_t:'Stop all sound', aria_keys:'On-screen piano keyboard', aria_lang:'Language', aria_theme:'Theme', aria_notation:'Note names', aria_keylabels:'Key labels',
   aria_circle:'Circle of fifths — pick a key', osmd_lic:'license', key_major:'%s major',
   goal_aria:'Daily goal: %a of %b answers', goal_txt:'%a / %b today',
@@ -2921,7 +2925,7 @@ Object.assign(STRINGS.en,{
 });
 Object.assign(STRINGS.ro,{
   aria_chapters:'Capitole', aria_mode:'Mod', aria_hands:'Mâini', aria_tempo:'Tempo', aria_staff:'Portativ', aria_exstaff:'Notație în cheia sol și în cheia fa',
-  aria_refroot:'Fundamentala de referință', aria_refname:'Acord sau gamă', aria_dir:'Direcție', aria_octdown:'Mută claviatura cu o octavă mai jos', aria_octup:'Mută claviatura cu o octavă mai sus',
+  aria_refroot:'Fundamentala de referință', aria_refname:'Acord sau gamă', aria_dir:'Direcție', aria_octdown:'Mută claviatura cu o octavă mai jos', aria_octup:'Mută claviatura cu o octavă mai sus', aria_kbpan:'Derulează claviatura pe orizontală',
   panic_t:'Oprește tot sunetul', aria_keys:'Claviatură de pian pe ecran', aria_lang:'Limbă', aria_theme:'Temă', aria_notation:'Numele notelor', aria_keylabels:'Etichete pe clape',
   aria_circle:'Cercul cvintelor — alege o tonalitate', osmd_lic:'licență', key_major:'%s major',
   goal_aria:'Obiectiv zilnic: %a din %b răspunsuri', goal_txt:'%a / %b azi',
@@ -3848,7 +3852,8 @@ const BLACK_NUDGE={1:-.28,3:.28,6:-.30,8:0,10:.30};
 function viewHigh(){ return view.low+view.oct*12; }
 function chooseView(){ const w=window.innerWidth; view.oct=w<560?2:w<900?3:4; view.low=Math.max(BASE_LOW,Math.min(view.low,BASE_HIGH-view.oct*12)); }
 function buildKeyboard(){
-  const keys=$('keys'); if(!keys) return; keys.innerHTML=''; whiteEl.clear(); blackEl.clear(); keyEl.clear();
+  const keys=$('keys'); if(!keys) return; const active=document.activeElement, focused=keys.contains(active)?Number(active.dataset.midi):null;
+  keys.innerHTML=''; whiteEl.clear(); blackEl.clear(); keyEl.clear();
   const lo=view.low, hi=viewHigh(), WHITE=new Set([0,2,4,5,7,9,11]);
   for(let m=lo;m<=hi;m++){ if(!WHITE.has(pc(m))) continue;
     const b=document.createElement('button'); b.className='key white'; b.dataset.midi=m; b.type='button'; b.tabIndex=0; b.setAttribute('aria-label',noteName(m,false));
@@ -3861,6 +3866,12 @@ function buildKeyboard(){
     const mk=document.createElement('span'); mk.className='mk'; b.appendChild(mk); const dg=document.createElement('span'); dg.className='dg'; dg.setAttribute('aria-hidden','true'); b.appendChild(dg); keys.appendChild(b); blackEl.set(m,b); keyEl.set(m,b); bindKeyA11y(b,m);
   }
   positionBlacks();
+  if(focused!=null){ const key=keyEl.get(Math.max(lo,Math.min(hi,focused))); if(key){
+    key.focus({preventScroll:true});
+    const scroll=$('dock-keys'), r=key.getBoundingClientRect(), s=scroll.getBoundingClientRect();
+    if(r.left<s.left) scroll.scrollLeft+=r.left-s.left;
+    else if(r.right>s.right) scroll.scrollLeft+=r.right-s.right;
+  } }
   const oi=$('octInd'); if(oi) oi.textContent=noteName(view.low,false)+'–'+noteName(viewHigh(),false);
   kbDegrees(kbDegSrc);
   if(view0()==='analysis') anKeysPaint(true);
@@ -3882,7 +3893,8 @@ function chordToneLabel(rel,pcs){ const has=x=>pcs.includes(x), third=has(3)||ha
     case 1: return '♭9'; case 2: return third?'9':'2'; case 5: return third?'11':'4'; }
   return ''; }
 function chordDegreeMap(midis,rootPc,pcs){ const map=new Map(); midis.forEach(m=>{ const rel=((pc(m)-rootPc)%12+12)%12; if(pcs.includes(rel)){ const l=chordToneLabel(rel,pcs); if(l) map.set(m,l); } }); return map; }
-function positionBlacks(){ blackEl.forEach((el,bm)=>{ const w=whiteEl.get(bm-1); if(!w||!w.offsetWidth) return; const bw=w.offsetWidth*.62, seam=w.offsetLeft+w.offsetWidth, n=(BLACK_NUDGE[pc(bm)]||0)*bw; el.style.width=bw+'px'; el.style.left=(seam-bw/2+n)+'px'; }); }
+function positionBlacks(){ blackEl.forEach((el,bm)=>{ const w=whiteEl.get(bm-1); if(!w||!w.offsetWidth) return; const bw=w.offsetWidth*.62, seam=w.offsetLeft+w.offsetWidth, n=(BLACK_NUDGE[pc(bm)]||0)*bw; el.style.width=bw+'px'; el.style.left=(seam-bw/2+n)+'px'; }); syncKeyboardPan(); }
+function syncKeyboardPan(){ const scroll=$('dock-keys'), pan=$('kb-pan'), max=Math.max(0,scroll.scrollWidth-scroll.clientWidth); pan.max=String(max); pan.value=String(scroll.scrollLeft); pan.hidden=!dockShown()||max<1; }
 function reflowKeys(){ requestAnimationFrame(()=>requestAnimationFrame(positionBlacks)); setTimeout(positionBlacks,90); }   // wait for the dock to lay out before measuring
 function foldToView(m){ const lo=view.low,hi=viewHigh(); let x=m; while(x<lo)x+=12; while(x>hi)x-=12; return x; }
 function kbState(midi,s,fold){ const m=fold?foldToView(midi):midi, el=keyEl.get(m); if(!el) return; if(s) el.dataset.s=s; else delete el.dataset.s; const mk=el.querySelector('.mk'); if(mk) mk.textContent=s==='good'?'✓':s==='bad'?'✗':''; }
@@ -4324,7 +4336,8 @@ function sesHome(){ return SES.targeted?'practice':'today'; }
 function openSessionUI(){ const ses=$('session');
   if(SES.targeted){ $('view-practice').appendChild(ses); $('pr-home').style.display='none'; }
   else { $('view-today').insertBefore(ses,$('summary')); $('pr-home').style.display=''; }
-  $('today-home').style.display='none'; $('summary').style.display='none'; ses.style.display='block'; ses.classList.add('on'); dockSync(); reflowKeys(); }
+  $('today-home').style.display='none'; $('summary').style.display='none'; ses.style.display='block'; ses.classList.add('on'); dockSync(); reflowKeys();
+  requestAnimationFrame(()=>{ if(SES.active) ses.scrollIntoView({block:'start',behavior:'instant'}); }); }
 function endSession(toSummary){
   const wasPlacement=SES.placement;
   if(wasPlacement){ data.placed=true; saveAll(); }
@@ -4550,8 +4563,15 @@ let _view='today';
 function view0(){ return _view; }
 const NAV_GROUPS={today:['today'],learn:['learn','songs','method'],practice:['practice','read','sing','analysis'],explore:['explore','accompany','transcribe'],progress:['progress']};
 function navGroup(v){ return Object.keys(NAV_GROUPS).find(g=>NAV_GROUPS[g].includes(v)); }
-const _modalStack=[];
+const _modalStack=[]; let _modalBackPending=false, _modalAfterBack=null;
 function pushModalState(id){
+  if(_modalBackPending){ _modalAfterBack=id; _modalStack.length=0; _modalStack.push(id); return; }
+  // Opening an overlay from the mobile menu replaces that temporary menu entry.
+  if(id!=='menu' && history.state && history.state.modal==='menu' && !$('mobileMenu').hidden){
+    closeMobileMenu(false,true); _modalStack.length=0;
+    try{ history.replaceState({modal:id},'',location.href); _modalStack.push(id); }catch(_){}
+    return;
+  }
   if(!_modalStack.includes(id)){
     _modalStack.push(id);
     try{ history.pushState({modal:id},'',location.href); }catch(_){}
@@ -4561,8 +4581,9 @@ function popModalState(id){
   const idx=_modalStack.indexOf(id);
   if(idx!==-1){
     _modalStack.splice(idx,1);
+    if(_modalBackPending && _modalAfterBack===id){ _modalAfterBack=null; return; }
     if(history.state&&history.state.modal===id){
-      try{ history.back(); }catch(_){}
+      try{ _modalBackPending=true; history.back(); }catch(_){ _modalBackPending=false; }
     }
   }
 }
@@ -4574,6 +4595,14 @@ function closeMobileMenu(returnFocus=false,fromPop=false){
   if(!fromPop) popModalState('menu');
   if(returnFocus) $('menuBtn').focus();
   return true;
+}
+function openMobileMenu(fromPop=false){
+  const mm=$('mobileMenu');
+  if(!fromPop) pushModalState('menu');
+  mm.innerHTML='';
+  document.querySelectorAll('#nav button').forEach(b=>{ const x=document.createElement('button'); x.textContent=b.textContent; x.dataset.view=b.dataset.view; x.setAttribute('aria-current',b.getAttribute('aria-current')||'false'); x.addEventListener('click',()=>show(x.dataset.view)); mm.appendChild(x); });
+  mm.hidden=false; $('menuBtn').setAttribute('aria-expanded','true');
+  (mm.querySelector('[aria-current="page"]')||mm.querySelector('button')).focus();
 }
 function renderModeNav(){
   const group=navGroup(view0()), views=NAV_GROUPS[group]||[];
@@ -4623,13 +4652,27 @@ function show(v,moveFocus=true){
   if(moveFocus&&(!active||active===document.body||!active.isConnected||!active.getClientRects().length)) focusView(v);
 }
 let _routed=false;
-window.addEventListener('popstate',()=>{
-  // Android Back gesture / popstate: dismiss active modal or mobile menu first without leaving view
-  if(closeMobileMenu(false,true)) return;
-  if($('helpBox').classList.contains('on')){ openHelp(false,true); return; }
-  if($('drawer').classList.contains('on')){ openDrawer(false,true); return; }
+window.addEventListener('popstate',e=>{
+  // The destination history entry, not the previously visible overlay, determines the UI.
+  if(_modalBackPending){
+    _modalBackPending=false;
+    const next=_modalAfterBack; _modalAfterBack=null;
+    if(next){ _modalStack.length=0; try{ history.pushState({modal:next},'',location.href); _modalStack.push(next); }catch(_){} return; }
+  }
+  const modal=e.state&&e.state.modal;
+  _modalStack.length=0;
+  if(modal==='menu'||modal==='help'||modal==='drawer') _modalStack.push(modal);
+  if(modal!=='menu'){
+    const menu=$('mobileMenu'), returnFocus=!modal && menu.contains(document.activeElement) && location.hash.slice(1)===_view;
+    closeMobileMenu(returnFocus,true);
+  }
+  if(modal!=='help' && $('helpBox').classList.contains('on')) openHelp(false,true);
+  if(modal!=='drawer' && $('drawer').classList.contains('on')) openDrawer(false,true);
   const v=location.hash.slice(1);
   if(navGroup(v) && v!==_view){ _routed=false; show(v); }
+  if(modal==='menu' && getComputedStyle($('menuBtn')).display!=='none' && $('mobileMenu').hidden) openMobileMenu(true);
+  if(modal==='help' && !$('helpBox').classList.contains('on')) openHelp(true,true);
+  if(modal==='drawer' && !$('drawer').classList.contains('on')) openDrawer(true,true);
 });
 
 /* ---------- TODAY ---------- */
@@ -9783,12 +9826,12 @@ function setOverlay(el,o,firstId){ const was=el.classList.contains('on'), hadFoc
 function trapFocus(e){ if(e.key!=='Tab') return; const f=[...e.currentTarget.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.getClientRects().length); if(!f.length) return;
   const a=f[0], z=f[f.length-1]; if(e.shiftKey&&document.activeElement===a){ e.preventDefault(); z.focus(); } else if(!e.shiftKey&&document.activeElement===z){ e.preventDefault(); a.focus(); } }
 function openDrawer(o,fromPop=false){
-  if(o){ releaseLiveInput(); pushModalState('drawer'); }
+  if(o){ releaseLiveInput(); if(!fromPop) pushModalState('drawer'); }
   else if(!fromPop){ popModalState('drawer'); }
   setOverlay($('drawer'),o,'drawerClose');
 }
 function openHelp(o,fromPop=false){
-  if(o){ releaseLiveInput(); kbdLayoutLabels(); pushModalState('help'); }
+  if(o){ releaseLiveInput(); kbdLayoutLabels(); if(!fromPop) pushModalState('help'); }
   else if(!fromPop){ popModalState('help'); }
   setOverlay($('helpBox'),o,'helpClose');
 }
@@ -9842,7 +9885,7 @@ function initControls(){
   $('set-theme').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; theme=b.dataset.v; applyTheme(); saveAll(); });
   // mobile menu
   $('menuBtn').addEventListener('click',()=>{ const mm=$('mobileMenu');
-    if(mm.hidden){ pushModalState('menu'); mm.innerHTML=''; document.querySelectorAll('#nav button').forEach(b=>{ const x=document.createElement('button'); x.textContent=b.textContent; x.dataset.view=b.dataset.view; x.setAttribute('aria-current',b.getAttribute('aria-current')||'false'); x.addEventListener('click',()=>show(x.dataset.view)); mm.appendChild(x); }); mm.hidden=false; $('menuBtn').setAttribute('aria-expanded','true'); (mm.querySelector('[aria-current="page"]')||mm.querySelector('button')).focus(); }
+    if(mm.hidden){ openMobileMenu(); }
     else closeMobileMenu(true); });
   document.addEventListener('click',e=>{ const mm=$('mobileMenu'); if(mm && !mm.hidden && !e.target.closest('#mobileMenu') && !e.target.closest('#menuBtn')) closeMobileMenu(); });
   // backup export / import
@@ -9937,6 +9980,8 @@ function initControls(){
   $('oct-up').addEventListener('click',()=>{ view.low=Math.min(BASE_HIGH-view.oct*12,view.low+12); buildKeyboard(); repaintHeld(); });
   $('panicBtn').addEventListener('click',panic);
   $('dock-kb-toggle').addEventListener('click',()=>dockSet(!dockOpen()));
+  $('kb-pan').addEventListener('input',e=>{ $('dock-keys').scrollLeft=+e.target.value; });
+  $('dock-keys').addEventListener('scroll',()=>{ $('kb-pan').value=String($('dock-keys').scrollLeft); });
   // settings: notation/tone/audio/learning
   $('set-notation').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; notation=b.dataset.v; document.querySelectorAll('#set-notation button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false')); applyNotation(); refreshToday(); saveAll(); });
   $('set-lang').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setLang(b.dataset.v); });
@@ -9964,6 +10009,11 @@ function initControls(){
 function handleScreenChange(){
   clearTimeout(rz);
   rz=setTimeout(()=>{
+    if(!$('mobileMenu').hidden && getComputedStyle($('menuBtn')).display==='none'){
+      const hadFocus=$('mobileMenu').contains(document.activeElement);
+      closeMobileMenu();
+      if(hadFocus){ const current=$('nav').querySelector('[aria-current="page"]'); if(current) current.focus({preventScroll:true}); }
+    }
     const o=view.oct;
     chooseView();
     if(view.oct!==o){ buildKeyboard(); repaintHeld(); }
@@ -9984,6 +10034,7 @@ applyTheme();
 fillRoots($('refRoot'),false); fillRoots($('song-root'),false); fillRoots($('pr-key'),true); fillRefNames(); fillKeyCtx();
 chooseView(); buildKeyboard(); initPointer(); initControls(); initExploreTabs(); reflectSettingsUI(); renderCircle(); applyI18n(); anLocalize();
 show(navGroup(location.hash.slice(1))?location.hash.slice(1):'today',false);
+if(history.state && history.state.modal) window.dispatchEvent(new PopStateEvent('popstate',{state:history.state}));
 saveAll(); // Persist the one-time migration from legacy synthetic timbres.
 autoReconnectMidi();
 bleAutoReconnect(); pwaInit(); wakeInit(); kbdLayoutLabels();
