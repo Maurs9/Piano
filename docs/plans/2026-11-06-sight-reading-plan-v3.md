@@ -5,11 +5,11 @@
 
 **Goal:** Livrarea întâi a unui antrenament de citire la prima vedere cu scor explicabil și exerciții reproductibile (MVP), apoi extinderea către practică pe fragmente (V2) și estimarea adaptivă a nivelului (V3).
 
-**Architecture:** Reutilizăm motoarele `SR` și `RD`, rendererul SVG (`srRender`) și infrastructura de input din `etude.html`. Separăm modelul partiturii în ticks, înregistrarea execuției (recorder conectat atât la `on` cât și la `off`), evaluatorul pur (`srtEvaluate`) și controlerul sesiunii. Păstrăm aplicația statică și toate funcțiile de model/fingerprint/evaluare **100% sincrone și pure**; registrul nou de încercări (`etude-sight-v1`) are o singură sursă de adevăr și nu intră în regulile generice de sincronizare (`SYNC_ADD` / `SYNC_MAX`) ale contoarelor vechi.
+**Architecture:** Reutilizăm motoarele `SR` și `RD`, rendererul SVG (`srRender`) și infrastructura de input din `etude.html`. Separăm modelul partiturii în ticks, înregistrarea execuției (recorder conectat atât la `on` cât și la `off`), evaluatorul pur (`srtEvaluate`) și controlerul sesiunii. Păstrăm aplicația statică și toate funcțiile de model, fingerprint și evaluare **100% sincrone și pure**; registrul nou de încercări (`etude-sight-v1`) are o singură sursă de adevăr, nu intră în regulile generice de sincronizare (`SYNC_ADD` / `SYNC_MAX`) ale contoarelor vechi și își serializează scrierile între taburi prin Web Locks.
 
-**Tech Stack:** HTML/CSS/JavaScript în `etude.html`, SVG existent, Web Audio, inputurile existente (MIDI, BLE MIDI, tastatură, pointer), Playwright. Stocare sincronă în `localStorage` cu notificare între taburi prin evenimentul `storage`; lipsa capabilităților de stocare nu blochează practica.
+**Tech Stack:** HTML/CSS/JavaScript în `etude.html`, SVG existent, Web Audio, inputurile existente (MIDI, BLE MIDI, tastatură, pointer), Playwright. Pentru înregistrarea eligibilă folosim `localStorage` coordonat exclusiv între taburi prin Web Locks (`navigator.locks`) și notificări prin evenimentul `storage`; lipsa capabilităților nu blochează practica.
 
-**Status:** Specificație de implementare revizuită (v3). Pragurile și curriculumul de mai jos sunt decizii inițiale de produs, aliniate cu evaluatorul ritmic existent (`rdRhGradeHand`), nu rezultate validate pedagogic.
+**Status:** Specificație de implementare revizuită (v3.1). Pragurile și curriculumul de mai jos sunt decizii inițiale de produs, aliniate cu evaluatorul ritmic existent (`rdRhGradeHand`), nu rezultate validate pedagogic.
 
 **Data:** 6 noiembrie 2026.
 
@@ -18,7 +18,7 @@
 **Documente anterioare:**
 - `docs/plans/2026-11-06-sight-reading-research-and-plan.md` (v1 — istoric al cercetării)
 - `docs/plans/2026-11-06-sight-reading-improved-plan.md` (v2 — specificație intermediară)
-Documentul de față (v3) înlocuiește v2 ca specificație propusă pentru implementare, rezolvând integrarea cu pipeline-ul de input existent, sincronismul fingerprint-ului pe origini non-HTTPS/LAN, simplificarea persistenței în MVP și maparea UI peste controalele existente.
+Documentul de față (v3) combină regulile stricte de concurență, proprietate pe tab și recuperare din v2 cu precizia de integrare în codul existent din `etude.html` (pipeline-ul `onInputChange`, alinierea cu `rdRhGradeHand`, fingerprint-ul sincron FNV-1a 64-bit cu vectori verificați și maparea UI compactă).
 
 ---
 
@@ -65,19 +65,19 @@ Referințele sunt simboluri la commitul de mai sus; numerele de linie sunt orien
 | Mod conceptual | Mapare în UI (`#rd-mode` / stare) | Ajutoare permise | Reluări | Rezultat |
 |---|---|---|---|---|
 | **Practică pas cu pas** | Butonul existent `learn` („Pas cu pas”) | Indicii opționale, mâini separate, `Listen`, ținte pe clape | Nelimitate | Progres de practică; consumă eligibilitatea de primă vedere a piesei afișate |
-| **Prima încercare în tempo** | Butonul `assess` pe o piesă generată **neexpusă încă** (cu badge „Prima vedere disponibilă”) | Fără `Listen`, fără ținte pe clape, fără nume de note pe portativ, fără acompaniament automat | **O singură încercare** eligibilă pe conținut local nou (preview 20 s → count-in 1 măsură → execuție) | Scor detaliat + statut `firstSight: true` salvat în `etude-sight-v1` |
+| **Prima încercare în tempo** | Butonul `assess` pe o piesă generată **neexpusă încă** (când coordonarea registrului este disponibilă) | Fără `Listen`, fără ținte pe clape, fără nume de note pe portativ, fără acompaniament automat | **O singură încercare** eligibilă pe conținut local nou (preview 20 s → count-in 1 măsură → execuție) | Scor detaliat + statut `firstSight: true` salvat în `etude-sight-v1` |
 | **Practică în tempo** | Același buton `assess` după consumarea primei încercări, pe piese de repertoriu fixe sau după apăsarea „Treci în practică” | Configurabile (inclusiv BPM, `Listen`, mâini separate) și vizibile în rezultat | Nelimitate | Scor detaliat din același evaluator `srtEvaluate`, etichetat `practice` |
 | **Evaluare adaptivă — V3** | Sesiune dedicată din Drills (`RD` mode `test` pe unitatea `sr`) | Reguli fixe pe sesiune | Fragmente noi | Nivel estimat Étude, experimental (livrabil V3) |
 
-**De ce această mapare UI:** Păstrăm selectorul `#rd-mode` compact (esențial la lățimea de 320 px pe mobil) și evităm aglomerarea barei de control cu 4 butoane permanente. Când o piesă nouă din generator este pregătită în modul `assess`, panoul intră în starea `preview` (20 s cronometru vizibil, buton primar „Pornește acum” și buton secundar „Treci în practică”). După finalizare sau trecerea în practică, piesa rămâne disponibilă oricând pentru „Practică în tempo” și „Practică pas cu pas”.
+**De ce această mapare UI:** Păstrăm selectorul `#rd-mode` compact (esențial la lățimea de 320 px pe mobil) și evităm aglomerarea barei de control cu 4 butoane permanente. Când o piesă nouă din generator este pregătită în modul `assess`, panoul obține mai întâi rezervarea exclusivă (`claiming`), apoi intră în starea `preview` (20 s cronometru vizibil, buton primar „Pornește acum” și buton secundar „Treci în practică”). După finalizare sau trecerea în practică, piesa rămâne disponibilă oricând pentru „Practică în tempo” și „Practică pas cu pas”.
 
 ### 2.2. Etape
 
 **MVP — obligatoriu înainte de extindere**
 1. Scor corect (`srtEvaluate`), recorder conectat la `on`/`off` și model în ticks cu contract stabil.
 2. Generator determinist P1–P2, o singură mână la alegere, 4/4 și 3/4, pauze simple.
-3. Flux complet: pregătire, claim sincron, preview (20 s), count-in, execuție fără colorare prematură, rezultat explicabil.
-4. Registru local sincron (`etude-sight-v1`) al expunerilor și încercărilor, cu reguli clare de abandon și backup.
+3. Flux complet: pregătire, claim coordonat între taburi, preview (20 s), count-in, execuție fără colorare prematură, rezultat explicabil.
+4. Registru local (`etude-sight-v1`) al expunerilor și încercărilor, cu proprietar pe tab (`ownerTabId`), protecție la reset (`generation`), recuperare a rezervărilor orfane și sincronizare prin Web Locks.
 5. Interfață și teste pentru limbile suportate de baza de integrare, mobil (320 px) și offline.
 
 **V2 — practică mai utilă**
@@ -96,28 +96,29 @@ Referințele sunt simboluri la commitul de mai sus; numerele de linie sunt orien
 
 ## 3. Arhitectură și contracte
 
-Fluxul propus (toate etapele de model, fingerprint și evaluare sunt **sincrone**):
+Fluxul propus (funcțiile de model, fingerprint și evaluare sunt **sincrone și pure**; doar mutațiile registrului `srtLedgerUpdate` sunt serializate prin Web Locks):
 
 ```text
 profil + seed → srtGenerate → srtValidatePiece → srtFingerprint (sincron)
                                                        ↓
-                                            eligibilitate / claim sincron
+                                      srtLedgerUpdate(claimExposure) [Web Lock]
                                                        ↓
-preview (20s) → count-in → recorder (on/off) → srtEvaluate → salvare rezultat
-                                 ↓                                  ↓
-                         onInputChange extins              UI / etude-sight-v1
+preview (20s) → count-in → recorder (on/off) → srtEvaluate → srtLedgerUpdate(finishAttempt)
+                                 ↓                                       ↓
+                         onInputChange extins                   UI / etude-sight-v1
 ```
 
 Funcții propuse:
 
-- `srtGenerate(profile, seed)`: model determinist, pur, independent de DOM și ceas.
-- `srtValidatePiece(piece, profile)`: validare structurală, ritmică și de profil.
-- `srtToLegacyPiece(piece)`: adaptor pentru `srRender`, care atașează fiecărei note generate un `eventId` stabil pentru maparea `nid ↔ expectedNote.id`.
-- `srtFingerprint(piece)`: funcție **pură și sincronă** care returnează identitatea canonică a conținutului (`v1:<hex64>`).
+- `srtGenerate(profile, seed)`: model determinist, pur, sincron, independent de DOM și ceas.
+- `srtValidatePiece(piece, profile)`: validare structurală, ritmică și de profil (sincronă, pură).
+- `srtToLegacyPiece(piece)`: adaptor sincron pentru `srRender`, care atașează fiecărei note generate un `eventId` stabil pentru maparea `nid ↔ expectedNote.id`.
+- `srtCanonicalString(piece)`: serializare canonică deterministă a conținutului muzical.
+- `srtFingerprint(piece)`: funcție **pură și sincronă** care aplică FNV-1a 64-bit peste `srtCanonicalString(piece)` și returnează `v1:<hex16>`.
 - `srtBuildExpected(piece, config)`: evenimente evaluate în milisecunde (`id`, `midi`, `hand`, `onMs`, `offMs`).
-- `srtEvaluate(expected, performed, config)`: evaluator pur și reproductibil.
+- `srtEvaluate(expected, performed, config)`: evaluator pur, sincron și reproductibil.
 - `srtTransition(state, event)`: mașina de stări pură a sesiunii, fără efecte secundare.
-- `srtLedgerUpdate(operation)`: acces sincron, validat, la `localStorage['etude-sight-v1']`.
+- `srtLedgerUpdate(operation)`: acces coordonat prin Web Locks la `localStorage['etude-sight-v1']`; nu este funcție pură.
 - `srtSlicePiece(piece, startBar, endBar)`: V2, nu condiție pentru MVP.
 
 ### 3.1. Reprezentarea muzicală
@@ -144,20 +145,41 @@ Propunere de model:
 Reguli:
 - `pitches: []` reprezintă o pauză, nu un eveniment de evaluat ca notă.
 - Timpul muzical se stochează în ticks întregi (`ticksPerQuarter = 480`); conversia în beats se face în adaptorul `srtToLegacyPiece`.
-- Un acord este un eveniment cu mai multe înălțimi în `pitches` (ordonate crescător după `midi`), nu o ordine obligatorie de apăsare.
+- Un acord este un eveniment cu mai multe înălțimi în `pitches` (ordonate crescător după `midi`, apoi lexicografic după `spelling`), nu o ordine obligatorie de apăsare.
 - Durata fiecărei voci umple exact măsurile (`bars * meter.num * (480 * 4 / meter.den)` ticks); nu deducem sfârșitul piesei doar din ultima notă atacată.
 - În MVP nu există anacruze, schimbări de măsură, voci suprapuse în aceeași mână sau legături peste bara de măsură.
 - Obiectele partiturii nu se modifică în timpul execuției. Rezultatele au structură separată.
 
-### 3.2. Identitatea conținutului (Sincronă și Independentă de Contextul Securizat)
+### 3.2. Identitatea conținutului: Specificare Exactă și Vectori de Test
 
-Fingerprint-ul se calculează dintr-o serializare canonică versionată care include măsura, tonalitatea/armura, mâinile, pauzele, atacurile (`onsetTick`), duratele (`durationTick`) și notația înălțimilor (`midi`, `spelling`). Ordonarea cheilor și a notelor din acord este fixă.
+Fingerprint-ul se calculează dintr-o serializare canonică versionată (`srtCanonicalString(piece)`) care include exclusiv măsura, `ticksPerQuarter`, tonalitatea/armura, numărul de măsuri și evenimentele muzicale ordonate după `(hand, onsetTick)`.
 
-Nu includem seed-ul, titlul, limba, tema, BPM-ul, `event.id` sau ID-ul profilului: aceeași partitură regenerată prin alt seed ori redeschisă la alt tempo nu devine automat nouă. Metadatele de digitație (`finger`) se exclud; schimbarea lor nu șterge expunerea.
+Nu includem seed-ul, titlul, limba, tema, BPM-ul, `event.id`, `finger` sau `profileId`: aceeași partitură regenerată prin alt seed ori redeschisă la alt tempo nu devine automat nouă, iar schimbarea digitației nu șterge expunerea.
 
-**Algoritm (v3):** În loc de `crypto.subtle.digest` (care este asincron și indisponibil pe `http://192.168.x.x` la testarea pe mobil în LAN sau pe `file://`), folosim un hash determinist sincron pe 64 de biți (pereche FNV-1a / Cyrb53 pe două seed-uri prime, formatată ca `v1:` + 16 caractere hexazecimale lowercase) peste stringul canonic UTF-8.
-- Astfel `srtFingerprint(piece)` este 100% sincron, pur și rapid (< 0.05 ms).
-- Testele verifică determinismul, invarianța la BPM/seed/digitație și sensibilitatea la orice schimbare de înălțime, durată, pauză, măsură sau armură.
+**Formatul exact al stringului canonic (`v1`):**
+```text
+v1|meter=<num>/<den>|tpq=<ticksPerQuarter>|key=<keyN>:<tonic>:<mode>|bars=<bars>|events=<ev0>;<ev1>;...
+```
+unde fiecare eveniment `<ev>` (ordonat după `hand` în ordinea `'lh' < 'rh'`, apoi crescător după `onsetTick`) este serializat ca:
+- pentru pauză (`pitches.length === 0`): `<hand>:<onsetTick>:<durationTick>:R`
+- pentru notă sau acord (`pitches` sortat crescător după `(midi, spelling)`): `<hand>:<onsetTick>:<durationTick>:<midi0>:<spelling0>,<midi1>:<spelling1>,...`
+
+**Algoritmul exact de hash (`srtFingerprint` — FNV-1a 64-bit peste UTF-8):**
+Folosim FNV-1a pe 64 de biți (`BigInt`) peste octeții UTF-8 (`new TextEncoder().encode(canonicalStr)`), astfel încât funcția să fie 100% sincronă și disponibilă inclusiv atunci când aplicația este deschisă pe telefon/tabletă prin HTTP pe IP local în LAN (`http://192.168.x.x:8787`, unde `crypto.subtle` este indisponibil):
+- `offset_basis = 0xcbf29ce484222325n`
+- `prime = 0x100000001b3n`
+- `mask = 0xffffffffffffffffn`
+- Pentru fiecare octet `b` din reprezentarea UTF-8:
+  `hash ^= BigInt(b); hash = (hash * prime) & mask;`
+- Rezultat returnat: `'v1:' + hash.toString(16).padStart(16, '0')` (16 cifre hexazecimale lowercase).
+
+**Vectori de referință (calculați cu Node.js):**
+1. String canonic:
+   `v1|meter=4/4|tpq=480|key=0:C:major|bars=1|events=rh:0:480:60:C4;rh:480:480:62:D4;rh:960:960:60:C4`
+   → Fingerprint: `v1:e8020957ec2a1005`
+2. String canonic (cu pauză pe timpul 2):
+   `v1|meter=4/4|tpq=480|key=0:C:major|bars=1|events=rh:0:480:60:C4;rh:480:480:R;rh:960:960:60:C4`
+   → Fingerprint: `v1:8472a9986749aba1`
 
 **Limită:** MVP recunoaște identitatea exactă definită mai sus, nu asemănarea melodică sau orice transpoziție. Fragmentarea unei piese deja expuse nu produce conținut eligibil nou; V2 păstrează identitatea și intervalul sursei.
 
@@ -202,7 +224,7 @@ Nu includem seed-ul, titlul, limba, tema, BPM-ul, `event.id` sau ID-ul profilulu
 - Atacurile din count-in (`< -250 ms`) nu sunt notate și nu pot satisface primele note ale piesei.
 - **Fără colorare contradictorie în timp real:** În timpul stării `playing` (atât în „Prima încercare în tempo”, cât și în „Practică în tempo”), pe portativ avansează doar cursorul (`srCursor`). Nu colorăm notele în `good`/`bad` din `srAssessLoop` pe parcursul execuției, deoarece asocierea optimă per înălțime (Secțiunea 5.1) se decide global la `T + 250 ms`. Imediat la intrarea în `completed`, fiecare notă de pe portativ primește atributul vizual `data-s` corespunzător clasificării din `srtEvaluate` (`good`, `near`, `bad`).
 - MVP folosește compensare de latență zero (`latencyOffsetMs: 0`) și salvează acest fapt în configurație. Nu ajustăm retroactiv offset-ul ca să maximizăm scorul.
-- Sursa de input (`midi`, `ble`, `kb`, `ptr`) este stocată în rezultat. O schimbare de sursă în timpul primei încercări marchează încercarea cu `mixedInput: true` și o exclude din comparațiile stricte V3; practica poate continua.
+- Sursa de input (`midi`, `ble`, `kb`, `ptr`) este stocată în rezultat. O schimbare de sursă în timpul primei încercări invalidează încercarea pentru comparații (`mixedInput: true`); practica poate continua.
 - Ascunderea paginii (`visibilitychange`), suspendarea contextului audio, deconectarea instrumentului MIDI sau `panic()` opresc eligibilitatea și trec încercarea în `interrupted`; nu sunt greșeli muzicale și nu produc strike.
 
 Durata fizică a apăsării și notele ținute peste pauză sunt doar diagnostice în MVP. Evaluarea strictă a duratelor (similară cu opțiunea `dur` din `rdRhGradeHand`) este livrabil separat în V2.
@@ -293,46 +315,48 @@ Exemplele presupun patru note așteptate (`N = 4`); asocierile enumerate sunt î
 
 ---
 
-## 6. Prima încercare: mașina de stări și eligibilitate
+## 6. Prima încercare: mașina de stări, proprietate pe tab și eligibilitate
 
 ### 6.1. Stări
 
 ```text
 idle → preparing → claiming → preview → countIn → playing → completed
                         ↓         ↓         ↓          ↓
-                    practice  abandoned  abandoned  interrupted
+                     blocked   abandoned  abandoned  interrupted
 ```
 
 - `preparing`: generare, validare, calcul fingerprint sincron, pregătire audio și verificare input; partitura nu este încă vizibilă.
-- `claiming`: verificăm sincron în `etude-sight-v1` dacă `fingerprint` a mai fost expus; dacă nu, persistăm imediat expunerea cu `claimAttemptId`. Dacă a fost deja expus (sau stocarea e indisponibilă), intrăm direct în modul `practice` cu explicație clară.
-- `preview`: abia după salvarea expunerii afișăm partitura și pornim cronometrul de 20 s. La sfârșitul celor 20 s (sau la apăsarea „Pornește acum”) se trece automat în `countIn`. Utilizatorul poate apăsa „Treci în practică”, ceea ce marchează încercarea ca `abandoned` și comută în „Practică în tempo”.
+- `claiming`: sub blocarea exclusivă Web Locks (`etude-sight-ledger-v1`), verificăm dacă `fingerprint` a mai fost expus; dacă nu, persistăm rezervarea expunerii cu `{ attemptId, ownerTabId, generation, fingerprint }` și menținem un lock de sesiune pe încercare (`etude-sight-attempt-<attemptId>`) pe toată durata încercării active. Dacă a fost deja expus (sau coordonarea este indisponibilă), intrăm în `blocked` / oferim direct modul `practice` cu explicație clară.
+- `preview`: abia după salvarea rezervării afișăm partitura și pornim cronometrul de 20 s. La sfârșitul celor 20 s (sau la apăsarea „Pornește acum”) se trece automat în `countIn`. Utilizatorul poate apăsa „Treci în practică”, ceea ce marchează încercarea ca `abandoned` și comută în „Practică în tempo”.
 - `countIn`: o măsură de metronom; configurația (BPM, mână, ajutoare) este înghețată.
 - `playing`: recorder activ în fereastra `[-250 ms, T + 250 ms]`; pe portativ se mișcă doar cursorul.
-- `completed`: tranziția din `playing` spre `completed` are loc **numai după bariera `T + 250 ms`**. Evaluatorul produce rezultatul, colorăm notele pe portativ și salvăm rezultatul în `etude-sight-v1`.
+- `completed`: tranziția din `playing` spre `completed` are loc **numai după bariera `T + 250 ms`**. Evaluatorul produce rezultatul, colorăm notele pe portativ și salvăm rezultatul în `etude-sight-v1` verificând `generation` și `ownerTabId`.
 - `abandoned` / `interrupted`: fără scor de primă vedere și fără strike (în V3); conținutul rămâne marcat ca expus și poate fi exersat imediat în practică.
 
-### 6.2. Reguli de eligibilitate
+### 6.2. Momentul eligibilității, proprietarul rezervării și recuperarea
 
 Verificăm dacă fingerprint-ul exista **înaintea claim-ului**, nu după preview. Preview-ul autorizat nu își invalidează propria încercare (`attemptId`).
 
+O rezervare are `{ attemptId, ownerTabId, generation, fingerprint }`. După rezervare, alt tab poate deschide același conținut doar ca practică. Eligibilitatea este legată de tupla `(attemptId, ownerTabId, generation)`, nu o proprietate booleană globală recalculată la redraw.
+
 Reguli obligatorii:
-- Orice afișare a unei partituri din noul sistem în afara preview-ului autorizat (de ex. deschiderea în modul `learn` sau `practice`) apelează sincron `srtLedgerUpdate({ type: 'recordExposure', fingerprint, reason })` înainte de desenare. Operația este idempotentă.
-- Dacă `localStorage` aruncă excepție (de ex. mod privat restrictiv sau `QuotaExceededError`), practica funcționează normal cu un mesaj informativ, dar modul „Prima încercare” este dezactivat.
+- **O citire din alt tab nu abandonează o încercare activă:** Când Tabul A are o încercare în curs (`preview`, `countIn`, `playing`), el ține lock-ul Web Locks `etude-sight-attempt-<attemptId>`. Dacă Tabul B se deschide sau citește registrul, Tabul B poate verifica neintruziv (`navigator.locks.request('etude-sight-attempt-' + attemptId, { ifAvailable: true }, lock => Boolean(lock))`) dacă încercarea este orfană. Cât timp Tabul A este viu și ține lock-ul încercării, Tabul B **nu** marchează încercarea lui A ca `abandoned`. Numai dacă lock-ul încercării este liber (adică Tabul A a dat refresh sau s-a închis înainte de `completed`), rezervarea rămasă fără rezultat terminal este marcată conservator ca `abandoned` sub blocarea registrului.
+- Orice afișare a unei partituri din noul sistem în afara preview-ului autorizat înregistrează mai întâi `recordExposure(fingerprint, reason)`, sub aceeași blocare `etude-sight-ledger-v1` ca rezervarea. Operația este idempotentă.
+- Dacă expunerea nu poate fi persistată (eroare de stocare sau lipsa Web Locks), practica poate continua cu avertisment, dar dezactivăm eligibilitatea de primă vedere în tabul curent.
 - MVP permite „Prima încercare” numai pe conținut generat de noul protocol (`srtGenerate`). Piesele fixe din `PIECES` rămân în practică.
-- Apăsarea `Listen` în timpul `preview`, `countIn` sau `playing` încheie eligibilitatea (`abandoned`) și trece sesiunea în practică.
-- Refresh-ul paginii nu reia o rezervare ca încercare nouă: orice claim rămas în starea `claimed` fără rezultat terminal este marcat `abandoned` la următoarea citire/inițializare.
+- `Listen` înainte de claim înregistrează expunere și permite numai practică ulterior. `Listen`, indicii sau reluare în timpul primei încercări încheie eligibilitatea (`abandoned`) și cer trecere explicită la practică.
 - Schimbarea limbii, temei sau dimensiunii ferestrei nu invalidează execuția și nu resetează recorderul.
 - Durata efectivă de preview (`previewDurationMs`, <= 20000 ms) este salvată în rezultat când utilizatorul apasă „Pornește acum”.
 
 ---
 
-## 7. Persistență, sincronizare și backup
+## 7. Persistență, concurență și backup
 
 ### 7.1. O singură sursă de adevăr (`etude-sight-v1`)
 
 Păstrăm progresul existent în `ptt-v3`, dar folosim cheia separată `etude-sight-v1` pentru noul registru. Motivul este izolarea completă de regulile generice `SYNC_ADD` / `SYNC_MAX` din `syncData`.
 
-Nu menținem o a doua copie autoritară a încercărilor în `data.reading`. UI-ul citește registrul prin helperul `srtLedgerRead()`.
+Nu menținem o a doua copie autoritară a încercărilor în `data.reading`. UI-ul citește registrul; rezumatele din memorie sunt derivate și reconstruibile.
 
 ```js
 {
@@ -340,45 +364,58 @@ Nu menținem o a doua copie autoritară a încercărilor în `data.reading`. UI-
   generation: 'gen-1762460000000-a1b2',
   revision: 1,
   exposures: {
-    // fingerprint → { firstSeenAt, reason, claimedByAttemptId }
+    // fingerprint → { firstSeenAt, reason, claim: { attemptId, ownerTabId, generation } }
   },
   attempts: {
-    // attemptId → rezultat terminal imuabil (status: 'completed' | 'abandoned' | 'interrupted')
+    // attemptId → rezultat terminal imuabil (status: 'completed' | 'abandoned' | 'interrupted', generation, ownerTabId, ...)
   },
   prefs: { practiceHints: true, lookAhead: false },
   sessions: { /* V3: rezumate versionate */ }
 }
 ```
 
-### 7.2. Protocolul sincron de scriere (fără Web Locks în MVP)
+### 7.2. Protocolul de scriere coordonat între taburi
 
-Deoarece `localStorage` este sincron pe thread-ul principal, iar `srtFingerprint` în v3 este de asemenea sincron, toate operațiile din `srtLedgerUpdate(op)` se execută atomic în cadrul aceluiași turn de event-loop:
-1. Citește `localStorage.getItem('etude-sight-v1')` și validează schema.
-2. Verifică `generation` și precondițiile operației (`claimExposure`, `recordExposure`, `finishAttempt`, `abandonAttempt`, `updatePrefs`, `resetLedger`, `importLedger`).
-3. Aplică transformarea idempotentă și incrementează `revision`.
-4. Scrie JSON-ul în `localStorage.setItem('etude-sight-v1', ...)`.
-5. Un listener `window.addEventListener('storage', ...)` pe cheia `etude-sight-v1` notifică tabul curent dacă un alt tab a consumat între timp expunerea sau a făcut reset, actualizând UI-ul fără condiții de cursă asincrone.
+Deoarece `localStorage` nu oferă un mutex între taburi conform specificației WHATWG Web Storage, toate scrierile în registru (`srtLedgerUpdate(operation)`) sunt serializate prin blocarea exclusivă `etude-sight-ledger-v1` folosind Web Locks API (`navigator.locks.request('etude-sight-ledger-v1', { mode: 'exclusive' }, ...)`):
 
-### 7.3. Creșterea datelor și limite
+1. Citește ultimul registru din `localStorage.getItem('etude-sight-v1')` și validează-i schema.
+2. **Verifică `generation` și precondițiile operației:**
+   - Pentru `finishAttempt` și `abandonAttempt`, operația transportă obligatoriu `(attemptId, ownerTabId, generation)` capturate la `claimExposure`.
+   - **Protecție strictă la reset:** Dacă `operation.generation !== ledger.generation`, operația este respinsă cu `{ ok: false, reason: 'stale_generation' }` fără a modifica registrul. O încercare începută înaintea unui reset în alt tab nu poate salva rezultate în generația nouă.
+   - Dacă `attemptId` nu aparține lui `operation.ownerTabId`, operația este respinsă (`reason: 'owner_mismatch'`).
+3. Aplică transformarea mică și idempotentă și incrementează `revision`.
+4. Salvează registrul complet în `localStorage.setItem('etude-sight-v1', ...)` înainte de eliberarea blocării.
+5. Recitește pentru confirmarea scrierii și notifică celelalte taburi (evenimentul `storage` notifică cititorii UI, dar nu înlocuiește Web Locks).
 
-- Păstrăm cel mult ultimele **500 de încercări** în `attempts`, ordonate determinist după `(finishedAt, attemptId)`.
-- Expunerile (`exposures`) nu se șterg la trunchierea `attempts`, pentru ca exercițiile vechi să nu redevină fals „noi”.
-- Limita pentru `exposures` în MVP este **4096 de identități**. La atingerea ei, practica rămâne disponibilă, iar pentru noi prime încercări UI-ul cere o arhivare/resetare explicită a registrului.
-- Dacă salvarea rezultatului la `completed` eșuează (`QuotaExceededError`), rezultatul rămâne vizibil pe ecran cu starea „rezultat nesalvat în stocarea locală” și buton de reîncercare/export.
-- Dacă în `etude-sight-v1` este găsită o `schemaVersion > 1` (scrisă de o versiune viitoare), nu o suprascriem cu `{}`; păstrăm datele intacte și permitem practica + exportul.
+Nu așteptăm audio, rețea sau animații în interiorul blocării `etude-sight-ledger-v1`.
+
+Operații distincte: `claimExposure`, `recordExposure`, `recordListen`, `finishAttempt`, `abandonAttempt`, `recoverOrphanClaims`, `updatePrefs`, `resetLedger`, `importLedger`. Salvarea de două ori a aceluiași rezultat (`same attemptId, same payload`) este idempotentă și nu dublează încercarea.
+
+**Fără Web Locks sau stocare disponibilă:** practica funcționează normal; nu promitem prima încercare coordonată între taburi și dezactivăm modul „Prima încercare” cu o explicație clară în UI.
+
+### 7.3. Creșterea datelor și eșecuri
+
+- Păstrăm cel mult ultimele **500 de rezultate detaliate** în `attempts`, ordonate determinist după `(finishedAt, attemptId)`.
+- Expunerile (`exposures`) nu se șterg odată cu trunchierea `attempts`, pentru ca exercițiile vechi să nu redevină fals „noi”.
+- Limita pentru `exposures` în MVP este **4096 de identități**. La atingerea ei, practica rămâne disponibilă, dar o nouă primă încercare este oprită până la o decizie explicită de arhivare sau resetare. Nu eliminăm în tăcere identități.
+- La `QuotaExceededError` sau eroare de scriere înainte de preview nu afișăm conținutul ca încercare eligibilă; oferim practică.
+- Dacă salvarea rezultatului la `completed` eșuează, afișăm „rezultat nesalvat”; claim-ul rămâne consumat, iar o reîncercare de salvare în aceeași generație păstrează același `attemptId`.
+- Un `resetLedger` generează un `generation` nou sub blocarea exclusivă. Orice încercare pornită înaintea resetului va eșua la `finishAttempt` datorită verificării `operation.generation === ledger.generation`.
+- Dacă în `etude-sight-v1` este găsită o `schemaVersion > 1` (scrisă de o versiune viitoare), nu o înlocuim automat cu `{}`; păstrăm datele intacte, oferim export și menținem doar practica.
 
 ### 7.4. Backup și migrare
 
 - Backup-urile existente `v:3` continuă să fie acceptate de `isBackupPayload`.
-- La exportul JSON din aplicație includem câmpul opțional `sightLedger` cu conținutul validat din `etude-sight-v1`.
+- Extindem exportul printr-un câmp opțional, versionat, `sightLedger`, fără a modifica semnificația lui `data` pentru aplicația existentă.
 - Absența lui `sightLedger` într-un backup vechi nu șterge registrul curent de expuneri.
-- La importul obișnuit:
+- Importul obișnuit se execută sub blocarea `etude-sight-ledger-v1`:
   - Construim și validăm integral registrul candidat înainte de scriere.
-  - Facem reuniunea (`union`) dicționarului `exposures` (păstrând cel mai vechi `firstSeenAt`).
-  - Reuniunea `attempts` după `attemptId`: încercările cu același ID și conținut identic se deduplică; dacă același `attemptId` are conținut diferit, importul este respins cu explicație clară.
-  - Orice rezervare importată neterminată (`claimed`) este marcată `abandoned` la import (nu poate transfera un claim activ).
-  - Aplicăm limita de 500 pentru `attempts`; dacă `exposures` reunite depășesc 4096 sau validatorul găsește valori invalide (NaN/Infinity, scoruri în afara `[0, 100]`, MIDI în afara `[0, 127]`), importul este respins fără modificarea registrului curent.
-  - Nicio valoare din backup nu este interpolată neescapată în `innerHTML`.
+  - **Păstrăm `generation`-ul curent al profilului local** și rezervările locale active (cele ale căror lock-uri `etude-sight-attempt-<id>` sunt deținute de un tab local activ).
+  - Rezervările neterminate provenite din fișierul importat nu sunt reluabile și sunt înregistrate doar ca expuneri istorice (`abandoned`). Importul nu poate transfera dreptul activ de primă încercare.
+  - Facem reuniunea (`union`) dicționarului `exposures` și a dicționarului `attempts` după `attemptId`.
+  - Rezultatele cu același `attemptId` și conținut identic se deduplică. Dacă același `attemptId` are conținut diferit, respingem importul și explicăm conflictul.
+  - Aplicăm limita de 500 pentru `attempts` după reuniune. Dacă `exposures` reunite depășesc 4096 sau validatorul găsește valori invalide (NaN/Infinity, scoruri în afara `[0, 100]`, MIDI în afara `[0, 127]`), respingem importul fără modificarea registrului curent.
+  - Intrările nevalidate nu ajung niciodată în `innerHTML`.
 
 ---
 
@@ -388,20 +425,21 @@ Profilul este o configurație explicită, nu doar un număr de dificultate. Mân
 
 | Profil | Măsură | Ambitus | Durate permise | Salt maxim diatonic | Pauze |
 |---|---|---|---|---|---|
-| `P1.a` | 4/4 | Poziție fixă de 5 note | Pătrimi, doimi | Secundă (pas treptat + repetări) | Nu |
-| `P1.b` | 4/4 | Poziție fixă de 5 note | Pătrimi, doimi | Terță | Nu |
-| `P1.c` | 4/4 | Poziție fixă de 5 note | Pătrimi, doimi | Terță; cel puțin o notă repetată | Nu |
-| `P2.a` | 4/4 | Poziție fixă de 5 note | Pătrimi, doimi | Terță | Pauză de pătrime (minimum 1) |
-| `P2.b` | 3/4 | Poziție fixă de 5 note | Pătrimi, doimi | Terță | Pauză de pătrime (minimum 1) |
-| `P2.c` | 3/4 sau 4/4 (din profil/seed) | Maximum o octavă (`C4–C5` / `C3–C4`) | Pătrimi, doimi | Terță | Pătrime sau doime când încape |
+| `P1.a` | 4/4 | Poziție fixă de 5 note | Pătrimi (`480`), doimi (`960`) | Secundă (pas treptat + repetări) | Nu |
+| `P1.b` | 4/4 | Poziție fixă de 5 note | Pătrimi (`480`), doimi (`960`) | Terță | Nu |
+| `P1.c` | 4/4 | Poziție fixă de 5 note | Pătrimi (`480`), doimi (`960`) | Terță; cel puțin o notă repetată | Nu |
+| `P2.a` | 4/4 | Poziție fixă de 5 note | Pătrimi (`480`), doimi (`960`) | Terță | Pauză de pătrime (`480`, minimum 1) |
+| `P2.b` | 3/4 | Poziție fixă de 5 note | Pătrimi (`480`), doimi (`960`) | Terță | Pauză de pătrime (`480`, minimum 1) |
+| `P2.c` | 3/4 sau 4/4 (fixată în profil) | Maximum o octavă (`C4–C5` / `C3–C4`) | Pătrimi (`480`), doimi (`960`) | Terță | Pătrime (`480`) sau doime (`960`) când încape |
 
-Valori inițiale: Do major (`keyN: 0`), 4 măsuri, 60 BPM în prima încercare (în practică tempo-ul poate fi schimbat liber). Pozițiile fixe de 5 note sunt `C4–G4` pentru mâna dreaptă și `C3–G3` pentru mâna stângă; ultima notă a măsurii 4 se rezolvă pe tonică (`C4` / `C3`) cu durată de doime (sau pătrime/doime punctată în 3/4).
+Valori inițiale: Do major (`keyN: 0`), 4 măsuri, 60 BPM în prima încercare (în practică tempo-ul poate fi schimbat liber). Pozițiile fixe de 5 note sunt `C4–G4` pentru mâna dreaptă și `C3–G3` pentru mâna stângă.
+**Regulă de cadență finală (fără contradicții de durată):** Măsura a 4-a se încheie pe tonică (`C4` / `C3`) folosind **exclusiv duratele permise de tabelul profilului** — în `4/4` ultima notă este o doime (`960` ticks) precedată de două pătrimi sau o doime; în `3/4` (`P2.b`, `P2.c`) măsura a 4-a este alcătuită dintr-o pătrime pe timpul 1 urmată de o doime pe tonică pe timpii 2–3 (`480 + 960 = 1440` ticks). Nu folosim doimi punctate în MVP, astfel încât generatorul și validatorul `srtValidatePiece` aplică exact aceeași mulțime de durate (`[480, 960]`).
 
 ### 8.1. Invariante obligatorii
 
 - Aceeași tuplă `(generatorVersion, profileId, hand, seed)` produce exact aceeași structură.
-- PRNG intern determinist (ex. Mulberry32 pe `seed` întreg pe 32 de biți validat); `Math.random()` este interzis în `srtGenerate`.
-- Duratele pozitive umplu exact fiecare măsură în grila de ticks (`ticksPerQuarter = 480`).
+- PRNG intern determinist (Mulberry32 pe `seed` întreg pe 32 de biți validat); `Math.random()` este interzis în `srtGenerate`.
+- Duratele pozitive aparțin exclusiv listei de durate a profilului (`[480, 960]` în MVP) și umplu exact fiecare măsură în grila de ticks (`ticksPerQuarter = 480`).
 - Fiecare măsură conține cel puțin o notă în MVP (fără măsuri complet goale).
 - Nicio durată nu traversează bara de măsură în MVP.
 - Înălțimile, salturile diatonice între note consecutive (ignorând pauzele intermediare) și ritmurile respectă constrângerile profilului.
@@ -513,14 +551,14 @@ Numele testelor noi încep cu `[srt:<categorie>]`, iar în CLI se filtrează cu 
 | ID | Fișiere de modificat/creat | Comportamente și criteriu de ieșire | Test țintit |
 |---|---|---|---|
 | **M0** | Fără schimbări de produs | Captură baseline pe `main`; verificare că serverul de test servește worktree-ul curent și suita existentă trece. | Suita existentă |
-| **M1** | `etude.html`; creare `tests/sight-reading-model.spec.mjs` | Modelul în ticks (`ticksPerQuarter = 480`), `srtValidatePiece`, adaptorul `srtToLegacyPiece` cu păstrarea `eventId ↔ nid`, `srtBuildExpected` și `srtFingerprint` **sincron** (Cyrb53/FNV-1a 64-bit hex). Teste pentru piesă goală, durate invalide, acord/pauză, invarianța fingerprint-ului la BPM/seed/digitație și sensibilitatea la note/pauze/măsură. | `srt:model` |
+| **M1** | `etude.html`; creare `tests/sight-reading-model.spec.mjs` | Modelul în ticks (`ticksPerQuarter = 480`), `srtValidatePiece`, adaptorul `srtToLegacyPiece` cu păstrarea `eventId ↔ nid`, `srtBuildExpected`, `srtCanonicalString` și `srtFingerprint` **sincron** (FNV-1a 64-bit cu vectorii exacti `v1:e8020957ec2a1005` și `v1:8472a9986749aba1`). Teste pentru piesă goală, durate invalide, acord/pauză, invarianța fingerprint-ului la BPM/seed/digitație și sensibilitatea la note/pauze/măsură. | `srt:model` |
 | **M2** | `etude.html`; creare `tests/sight-reading-score.spec.mjs` | Evaluatorul pur `srtEvaluate`: asociere monotonă prin programare dinamică per înălțime MIDI, restrângerea ferestrei la `45%` pentru note repetate apropiate, independența ordinii în acorduri, toți vectorii din Secțiunea 5.5, limitele exacte `100 ms` / `180 ms` / `250 ms`, `restViolations` și stele. | `srt:score` |
 | **M3** | `etude.html`; creare `tests/sight-reading-recorder.spec.mjs` | Extinderea `onInputChange(kind, midi, source, releaseKind)` pentru a propaga `on` și `off` către recorderul `SR`; ignorarea clapelor ținute înainte de `-250 ms`; captură în `[-250 ms, T + 250 ms]`; excluderea sunetelor generate de aplicație (`srClick`, `previewNote`, `srListen`, `srPlayGap`); tratarea `releaseFocusInput` și `panic`. | `srt:recorder` |
 | **M4** | `etude.html`; `tests/sight-reading-score.spec.mjs`; `tests/app.spec.mjs` | Integrarea `srtEvaluate` în modul în tempo (`assess`): oprirea colorării greedy din timpul `playing`, bariera de finalizare la `T + 250 ms`, colorarea notelor pe portativ la `completed`, separarea de `data.sheet[id].best`. Regresie: apăsarea tuturor clapelor (keyboard-mashing) nu mai produce 100% sau 3 stele. | `srt:integration` |
-| **M5** | `etude.html`; creare `tests/sight-reading-generator.spec.mjs` | Generatorul determinist `srtGenerate(profile, seed)` pentru `P1.a`–`P2.c`, ambele mâini (`rh`, `lh`), PRNG fără `Math.random()`, verificarea invariantelor pe seed-urile `0..999` și respingerea profilurilor imposibile. | `srt:generator` |
-| **M6** | `etude.html`; creare `tests/sight-reading-ledger.spec.mjs` | Registrul sincron `etude-sight-v1` (`srtLedgerRead`, `srtLedgerUpdate`): `claimExposure`, `recordExposure`, `finishAttempt`, `abandonAttempt`, idempotență, trunchierea la 500 de încercări fără ștergerea celor până la 4096 de expuneri, sincronizare prin evenimentul `storage` și fallback la practică dacă `localStorage` e blocat. | `srt:ledger` |
+| **M5** | `etude.html`; creare `tests/sight-reading-generator.spec.mjs` | Generatorul determinist `srtGenerate(profile, seed)` pentru `P1.a`–`P2.c`, ambele mâini (`rh`, `lh`), PRNG Mulberry32 fără `Math.random()`, cadența finală în 4/4 și 3/4 exclusiv din duratele permise (`[480, 960]`), verificarea invariantelor pe seed-urile `0..999` și respingerea profilurilor imposibile. | `srt:generator` |
+| **M6** | `etude.html`; creare `tests/sight-reading-ledger.spec.mjs` | Registrul `etude-sight-v1` coordonat prin Web Locks (`etude-sight-ledger-v1` + lock de sesiune `etude-sight-attempt-<id>`): `claimExposure` atomic între două taburi concurente, protecția unei încercări active la citirea din alt tab, recuperarea doar a rezervărilor orfane, respingerea `finishAttempt` cu `generation` veche după un reset în alt tab, idempotență, limitele 500/4096 și fallback explicit la practică fără Web Locks. | `srt:ledger` |
 | **M7** | `etude.html`; creare `tests/sight-reading-flow.spec.mjs` | Mașina de stări `srtTransition` și integrarea în UI (`rdSightStart`, `rdGenMelody`, `#rd-mode`): `preparing → claiming → preview (20 s) → countIn → playing → completed`, butonul „Pornește acum”, butonul „Treci în practică”, invalidarea eligibilității la `Listen` / refresh / pierdere vizibilitate, re-rularea aceleiași piese ca „Practică în tempo”. | `srt:flow` |
-| **M8** | `etude.html`; `tests/sight-reading-ledger.spec.mjs` | Export/import backup cu câmpul opțional `sightLedger`: compatibilitate cu backup-uri `v:3` fără `sightLedger`, reuniunea expunerilor și încercărilor, respingerea conflictelor de conținut pe același `attemptId`, transformarea claim-urilor neterminate importate în `abandoned`, protecția la `schemaVersion` viitoare. | `srt:backup` |
+| **M8** | `etude.html`; `tests/sight-reading-ledger.spec.mjs` | Export/import backup cu câmpul opțional `sightLedger`: compatibilitate cu backup-uri `v:3` fără `sightLedger`, păstrarea `generation`-ului curent și a rezervărilor active locale, transformarea claim-urilor importate în `abandoned`, reuniunea expunerilor și încercărilor, respingerea conflictelor de conținut pe același `attemptId`, protecția la `schemaVersion` viitoare. | `srt:backup` |
 | **M9** | `etude.html`; creare `tests/sight-reading-ui.spec.mjs` | Sumarul explicabil al rezultatului (Pitch F1, Rhythm Acc, extra, offset mediu, badge Primă vedere vs Practică), simboluri non-culoare + tooltips pe note, responsivitate la 320 px și landscape, păstrarea stării la schimbarea limbii/temei. | `srt:ui` |
 | **M10** | `tests/sight-reading-ui.spec.mjs`; `sw.js` (numai dacă e necesar) | Funcționare offline după prima încărcare, suita completă de regresie Playwright și verificare end-to-end. | `srt:offline` + suita completă |
 
@@ -568,9 +606,9 @@ test('[srt:score] silence on a non-empty score is zero', async ({ app, page }) =
 | **Scor (`srt:score`)** | Perfect, tăcere, note suplimentare (`FP`), substituții (`1 FN + 1 FP`), note lipsă, `near`, `lateOrEarly`, piesă goală (`N = 0`), limitele exacte `100 / 180 / 250 ms`, `restViolations` |
 | **Polifonie & Repetări** | Acord cântat în ordine diferită a notelor, note repetate apropiate (restrângerea ferestrei la `45%`), un singur atac care nu poate satisface două note așteptate |
 | **Recorder (`srt:recorder`)** | Propagarea `on` și `off` cu `source` și `releaseKind`, clapă ținută dinainte de `-250 ms` vs atac la `-100 ms`, captură până la `T + 250 ms`, excluderea `srClick` / `previewNote` / `srListen`, pierderea focusului (`releaseFocusInput`) |
-| **Generator (`srt:generator`)** | Toate profilurile `P1.a`–`P2.c`, ambele mâini (`rh`, `lh`), seed-urile `0..999`, absența pauzei pe primul timp din măsura 1, rezolvarea pe tonică, respingerea unui profil invalid |
+| **Generator (`srt:generator`)** | Toate profilurile `P1.a`–`P2.c`, ambele mâini (`rh`, `lh`), seed-urile `0..999`, absența pauzei pe primul timp din măsura 1, cadența pe tonică în 4/4 și 3/4 exclusiv din duratele permise (`[480, 960]`), respingerea unui profil invalid |
 | **Prima vedere (`srt:flow`)** | Preview 20 s valid, „Pornește acum”, „Treci în practică”, expunere anterioară în `learn`/`practice`, apăsare `Listen`, refresh în timpul preview/execuție, schimbare BPM pe același conținut |
-| **Stocare & Backup (`srt:ledger`, `srt:backup`)** | Izolarea `etude-sight-v1` față de `ptt-v3`, idempotență la salvare, limita de 500 `attempts` și 4096 `exposures`, backup `v:3` vechi fără `sightLedger`, conflict de `attemptId` la import, `QuotaExceededError` |
+| **Stocare, Concurență & Backup (`srt:ledger`, `srt:backup`)** | Două taburi cu claim simultan pe același fingerprint, citire în Tab B fără abandonarea încercării active din Tab A, reset în Tab B urmat de `finishAttempt` respins (`stale_generation`) în Tab A, idempotență la salvare, limita de 500 `attempts` și 4096 `exposures`, backup `v:3` vechi fără `sightLedger`, conflict de `attemptId` la import, claim importat transformat în `abandoned`, `QuotaExceededError` |
 | **UI & Accesibilitate (`srt:ui`)** | Română și engleză, light/dark, viewports `320 px`, `390 px`, `1024 px`, `1920 px` și landscape scund, simboluri non-culoare pe note, `prefers-reduced-motion` |
 | **Offline (`srt:offline`)** | Încărcare offline după vizită online pe aceeași origine; fingerprint și evaluare 100% funcționale fără conexiune sau context HTTPS |
 
@@ -582,7 +620,7 @@ PW_CHANNEL= npm test -- --workers=4
 ```
 
 - Cerem zero erori neașteptate și zero teste selectate în gol dacă se folosește `--grep`.
-- Testele unitare de scor și generator injectează direct structuri de date în `page.evaluate(...)` (execuție în milisecunde, fără așteptări de timp real). Testele de integrare (`srt:flow`, `srt:recorder`) verifică legătura cu ceasul și DOM-ul real.
+- Testele unitare de scor și generator injectează direct structuri de date în `page.evaluate(...)`. Testele de integrare (`srt:flow`, `srt:recorder`, `srt:ledger`) verifică legătura cu ceasul, DOM-ul și coordonarea între două pagini Playwright din același `BrowserContext`.
 
 **Poarta MVP:** toate livrabilele `M1`–`M10` sunt verificate automat, suita existentă nu regresează, salvările `v:3` rămân compatibile, iar nicio funcție V2/V3 nu este prezentată fals drept activă.
 
@@ -596,13 +634,13 @@ PW_CHANNEL= npm test -- --workers=4
 
 ---
 
-## 15. Rezumatul modificărilor față de v2
+## 15. Rezumatul arhitecturii v3.1 (Sinteza v2 + v3)
 
-1. **Fingerprint sincron (`srtFingerprint`):** Înlocuit SHA-256 asincron (`crypto.subtle`) cu hash determinist sincron pe 64 de biți (Cyrb53 / FNV-1a pereche), garantând funcționarea pe `http://192.168.x.x` (testare mobilă în LAN) și `file://`, și păstrând tot pipeline-ul de model/claim 100% sincron.
-2. **Persistență simplificată în MVP (`etude-sight-v1`):** Eliminată dependența de Web Locks asincrone în MVP în favoarea operațiilor atomice sincrone pe `localStorage` + ascultarea evenimentului `storage`, reducând complexitatea și suprafața de bug-uri în M6/M8.
-3. **Cablarea explicită a pipeline-ului de input în M3:** Specificată extinderea `onInputChange(kind, midi, source, releaseKind)` și integrarea cu `handleNoteOn`, `handleNoteOff`, `releaseFocusInput` și `panic`, plus alinierea cu pragurile (`100 ms` / `180 ms`) din `rdRhGradeHand`.
-4. **Mapare UX clară și compactă în `#rd-mode`:** Specificat cum „Prima încercare în tempo” și „Practică în tempo” partajează curat modul în tempo (`assess`) în funcție de eligibilitatea piesei, cu preview de 20 s, „Pornește acum” și „Treci în practică”, păstrând interfața suplă pe 320 px.
-5. **Afișare coerentă în timpul execuției (`playing` vs `completed`):** Eliminată colorarea greedy în timp real din timpul `playing` în modurile în tempo, aplicând clasificarea vizuală (`good`, `near`, `bad`) la `completed` direct din rezultatul optim calculat de `srtEvaluate` după bariera `T + 250 ms`.
+1. **Fingerprint sincron și complet specificat (`srtFingerprint` — §3.2):** FNV-1a pe 64 de biți (`BigInt`, `offset_basis = 0xcbf29ce484222325n`, `prime = 0x100000001b3n`) peste octeții UTF-8 ai serializării canonice `srtCanonicalString(piece)`, cu vectori de test verificați cu Node.js (`v1:e8020957ec2a1005` și `v1:8472a9986749aba1`), funcționând inclusiv pe HTTP în LAN la testarea pe mobil.
+2. **Concurență multi-tab, proprietate și protecție la reset (§6.2, §7.2):** Funcțiile de model și evaluare rămân 100% sincrone și pure, în timp ce mutațiile registrului (`srtLedgerUpdate`) sunt serializate prin Web Locks (`etude-sight-ledger-v1`). Fiecare încercare activă ține lock-ul `etude-sight-attempt-<attemptId>` (astfel încât citirea din alt tab nu o abandonează), iar orice scriere verifică `operation.generation === ledger.generation` pentru ca o încercare începută înainte de reset să nu poată polua generația nouă.
+3. **Cablarea explicită a pipeline-ului de input în M3 (§4.1):** Extinderea `onInputChange(kind, midi, source, releaseKind)` și integrarea cu `handleNoteOn`, `handleNoteOff`, `releaseFocusInput` și `panic`, plus alinierea cu pragurile (`100 ms` / `180 ms`) din `rdRhGradeHand`.
+4. **Cadență în 3/4 și 4/4 fără contradicții de durată (§8):** Măsura finală folosește exclusiv duratele permise de tabelul profilului (`480` și `960` ticks), eliminând doima punctată din MVP.
+5. **Mapare UX compactă în `#rd-mode` și feedback vizual după `T + 250 ms` (§2.1, §4.3):** Împărțirea curată între „Prima încercare în tempo” și „Practică în tempo”, plus aplicarea culorilor și simbolurilor pe note doar la `completed`, direct din rezultatul optim returnat de `srtEvaluate`.
 
 ## Sources
 
