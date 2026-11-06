@@ -57,9 +57,11 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   :root[data-theme=dark] .cell[data-b="3"],:root[data-theme=dark] .cell[data-b="4"]{background:#37331f; color:#cfc06b; border-color:#4f4a2c}
   :root[data-theme=dark] .cell[data-b="5"],:root[data-theme=dark] .cell[data-b="6"]{background:var(--good-bg); color:var(--good); border-color:#3a5242}
   :root[data-theme=dark] .track::after{background:#efe9dd}
-  :root[data-theme=dark] .white{border-color:#2a2520; background:linear-gradient(180deg,#ece5d8 0%,#ded6c8 30%,#d2c7b5 80%,#c4b7a2 100%); box-shadow:inset 1px 0 0 rgba(255,255,255,.35), inset -1px 0 0 rgba(0,0,0,.25), inset 0 -1px 1px rgba(255,255,255,.5), inset 0 -6px 8px -2px rgba(85,75,65,.35), 0 2px 4px rgba(0,0,0,.4)}
-  :root[data-theme=dark] .white.pressed{background:linear-gradient(180deg,#c7beaf 0%,#b8ad9c 60%,#aba18f 100%)}
-  :root[data-theme=dark] .white .lbl{color:#645b4c; text-shadow:0 1px 0 rgba(255,255,255,.25)}
+  :root[data-theme=dark] .white:not([data-s]){border-color:#2a2520; background:linear-gradient(180deg,#ece5d8 0%,#ded6c8 30%,#d2c7b5 80%,#c4b7a2 100%); box-shadow:inset 1px 0 0 rgba(255,255,255,.35), inset -1px 0 0 rgba(0,0,0,.25), inset 0 -1px 1px rgba(255,255,255,.5), inset 0 -6px 8px -2px rgba(85,75,65,.35), 0 2px 4px rgba(0,0,0,.4)}
+  :root[data-theme=dark] .white:not([data-s]).pressed{background:linear-gradient(180deg,#c7beaf 0%,#b8ad9c 60%,#aba18f 100%)}
+  :root[data-theme=dark] .white:not([data-s]) .lbl{color:#645b4c; text-shadow:0 1px 0 rgba(255,255,255,.25)}
+  :root[data-theme=dark] .white[data-s=target],:root[data-theme=dark] .white[data-s=active]{border-color:#b5831e}
+  :root[data-theme=dark] .white[data-s=target] .lbl,:root[data-theme=dark] .white[data-s=active] .lbl{color:#3a2402; text-shadow:0 1px 0 rgba(255,255,255,.5)}
   :root[data-theme=dark] .keys{background:#0a0908}
   *{box-sizing:border-box}
   html,body{margin:0} html{height:100%}
@@ -300,7 +302,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .cof-note{margin:8px 0 0; font-size:12.5px; line-height:1.5; color:var(--muted)}
   @media (max-width:900px){ .cof-layout{grid-template-columns:1fr; gap:18px} .cof-svg{max-width:520px} }
   @media (max-width:560px){ .cof-panel{padding:14px 12px 16px} .cof-maj{font-size:38px} .cof-maj.sm{font-size:28px} .cof-min{font-size:21px} .cof-min.sm{font-size:16px} .cof-cnt{font-size:17px} }
-  @media (prefers-reduced-motion:reduce){ .cof-w,.cof-ring-sel,.ck-w,.ck-b{transition:none} }
+  @media (prefers-reduced-motion:reduce){ .cof-w,.cof-ring-sel,.ck-w,.ck-b,.white,.black,.key.pressed{transition:none; transform:none !important} }
 
   .songs{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px}
   .songcard{border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:var(--card)}
@@ -367,27 +369,35 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .white{position:relative; flex:1 1 0; min-width:26px; border:1px solid #c2b8a7; border-top:none; border-radius:0 0 4px 4px;
     background:linear-gradient(180deg,#ffffff 0%,#fdfcf9 30%,#f5eee1 80%,#ebe0ce 100%);
     box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(0,0,0,.08), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(180,165,140,.35), 0 2px 4px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.1);
-    transition:background .05s, transform .03s, box-shadow .03s}
+    transform-origin:top center;
+    transition:transform .1s cubic-bezier(.25,1,.5,1), box-shadow .1s cubic-bezier(.25,1,.5,1), background .08s ease-out, border-color .08s ease-out}
   .white .lbl{position:absolute; bottom:7px; left:0; right:0; text-align:center; font-size:9px; color:#8c816f; font-weight:700; font-family:var(--sans); letter-spacing:.02em; pointer-events:none; text-shadow:0 1px 0 rgba(255,255,255,.6)}
   .black{position:absolute; top:0; height:64%; width:24px; border-radius:0 0 3px 3px;
     background:linear-gradient(180deg,#36302a 0%,#24201c 45%,#181513 78%,#2a2520 92%,#141210 100%);
     border:1px solid #0d0b09; border-top:none; z-index:5;
     box-shadow:inset 1px 1px 0 rgba(255,255,255,.16), inset -1px 0 0 rgba(0,0,0,.6), inset 0 -2px 3px rgba(0,0,0,.7), -2px 3px 6px rgba(0,0,0,.42), 2px 4px 6px rgba(0,0,0,.35), 0 5px 8px rgba(0,0,0,.35);
-    transition:background .05s, transform .03s, box-shadow .03s}
-  .key.pressed{transform:translateY(2.5px)}
-  .white.pressed{background:linear-gradient(180deg,#eee8db 0%,#e2d8c7 60%,#ded2c0 100%);
-    box-shadow:inset 0 2px 4px rgba(0,0,0,.15), inset 1px 0 0 rgba(255,255,255,.4), inset -1px 0 0 rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.1)}
-  .black.pressed{background:linear-gradient(180deg,#24201c 0%,#171411 75%,#1f1b17 100%);
-    box-shadow:inset 1px 1px 0 rgba(255,255,255,.08), inset -1px 0 0 rgba(0,0,0,.7), -1px 2px 4px rgba(0,0,0,.35), 1px 2px 4px rgba(0,0,0,.3), 0 3px 5px rgba(0,0,0,.3)}
-  .white[data-s=active]{background:linear-gradient(180deg,#fff2e3 0%,#fde7d0 40%,#f6d2b0 82%,#e7be96 100%);
-    box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(180,100,50,.2), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(180,110,60,.3), 0 2px 4px rgba(0,0,0,.18)}
-  .black[data-s=active]{background:linear-gradient(180deg,#b86e3a 0%,#944e22 55%,#763b15 88%,#5a2c0f 100%);
-    box-shadow:inset 1px 1px 0 rgba(255,220,180,.4), inset -1px 0 0 rgba(0,0,0,.6), -2px 3px 6px rgba(0,0,0,.4), 2px 3px 6px rgba(0,0,0,.35), 0 5px 8px rgba(0,0,0,.35)}
-  /* the key to play now: a gold key, filled like the right / wrong states rather than boxed in */
-  .white[data-s=target]{background:linear-gradient(180deg,#fffceb 0%,#fef3c7 40%,#f8df89 82%,#ecc458 100%);
-    box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(180,130,20,.2), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(180,135,30,.35), 0 2px 4px rgba(0,0,0,.18)}
+    transform-origin:top center;
+    transition:transform .1s cubic-bezier(.25,1,.5,1), box-shadow .1s cubic-bezier(.25,1,.5,1), background .08s ease-out}
+  .key.pressed{transition:transform .03s cubic-bezier(0,0,.2,1), box-shadow .03s cubic-bezier(0,0,.2,1), background .03s ease, border-color .03s ease}
+  .white.pressed{transform:translateY(3.5px); background:linear-gradient(180deg,#eee8db 0%,#e2d8c7 60%,#ded2c0 100%);
+    box-shadow:inset 0 4px 5px -1px rgba(0,0,0,.3), inset 1.5px 0 2px rgba(0,0,0,.16), inset -1.5px 0 2px rgba(0,0,0,.16), inset 0 -1px 1px rgba(255,255,255,.3), 0 1px 1.5px rgba(0,0,0,.25)}
+  .black.pressed{transform:translateY(4px); background:linear-gradient(180deg,#24201c 0%,#171411 75%,#1f1b17 100%);
+    box-shadow:inset 0 3px 4px rgba(0,0,0,.7), inset 1px 1px 0 rgba(255,255,255,.08), inset -1px 0 0 rgba(0,0,0,.8), -1px 1px 3px rgba(0,0,0,.45), 1px 1px 3px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.35)}
+  .white[data-s=active]{border-color:#cca02d; background:linear-gradient(180deg,#fff8e2 0%,#fde492 35%,#f4c450 78%,#df9f20 100%);
+    box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(160,110,15,.25), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(180,120,20,.4), 0 2px 4px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.1)}
+  .white[data-s=active] .lbl{color:#523502; font-weight:800; text-shadow:0 1px 0 rgba(255,255,255,.6)}
+  .black[data-s=active]{background:linear-gradient(180deg,#e5b344 0%,#c48c22 55%,#a16f15 88%,#78500c 100%);
+    box-shadow:inset 1px 1px 0 rgba(255,245,190,.55), inset -1px 0 0 rgba(0,0,0,.6), -2px 3px 6px rgba(0,0,0,.4), 2px 3px 6px rgba(0,0,0,.35), 0 5px 8px rgba(0,0,0,.35)}
+  /* the key to play now / scale notes in circle of fifths: rich golden amber harmonized across white and black keys */
+  .white[data-s=target]{border-color:#cca02d; background:linear-gradient(180deg,#fff8e2 0%,#fde492 35%,#f4c450 78%,#df9f20 100%);
+    box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(160,110,15,.25), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(180,120,20,.4), 0 2px 4px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.1)}
+  .white[data-s=target] .lbl{color:#523502; font-weight:800; text-shadow:0 1px 0 rgba(255,255,255,.6)}
   .black[data-s=target]{background:linear-gradient(180deg,#dfaf47 0%,#bc8d29 55%,#9b721c 88%,#785611 100%);
     box-shadow:inset 1px 1px 0 rgba(255,245,190,.5), inset -1px 0 0 rgba(0,0,0,.6), -2px 3px 6px rgba(0,0,0,.4), 2px 3px 6px rgba(0,0,0,.35), 0 5px 8px rgba(0,0,0,.35)}
+  .white[data-s=active].pressed, .white[data-s=target].pressed{border-color:#aa730f; background:linear-gradient(180deg,#f7df8f 0%,#ebb946 35%,#d4951d 78%,#b87807 100%);
+    box-shadow:inset 0 4px 6px -1px rgba(100,60,5,.45), inset 1.5px 0 2px rgba(80,45,0,.25), inset -1.5px 0 2px rgba(80,45,0,.25), inset 0 -1px 1px rgba(255,255,255,.4), 0 1px 1.5px rgba(0,0,0,.25)}
+  .black[data-s=active].pressed, .black[data-s=target].pressed{background:linear-gradient(180deg,#c48c22 0%,#a16f15 55%,#80540a 88%,#5f3c03 100%);
+    box-shadow:inset 0 3px 4px rgba(0,0,0,.7), inset 1px 1px 0 rgba(255,240,170,.3), inset -1px 0 0 rgba(0,0,0,.8), -1px 1px 3px rgba(0,0,0,.45), 1px 1px 3px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.35)}
   .white[data-s=good]{background:linear-gradient(180deg,#f0faf2 0%,#dbf0e0 40%,#b8e2c0 82%,#95cca1 100%);
     box-shadow:inset 1px 0 0 rgba(255,255,255,.9), inset -1px 0 0 rgba(40,120,60,.2), inset 0 -1px 1px rgba(255,255,255,.9), inset 0 -6px 8px -2px rgba(50,130,70,.3), 0 2px 4px rgba(0,0,0,.18)}
   .black[data-s=good]{background:linear-gradient(180deg,#4f9f64 0%,#3a7f4e 55%,#2a653c 88%,#1c4b2a 100%);
@@ -1927,8 +1937,8 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
     <p id="piano-status" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin:0" hidden></p>
     <div class="dock-tools">
       <div class="legend" aria-hidden="true">
-        <span class="lg"><span class="sw" style="background:#e6c19f"></span><span data-i18n="lg_playing">Playing</span></span>
-        <span class="lg"><span class="sw" style="background:linear-gradient(180deg,#fcf2d2,#efcf72)"></span><span data-i18n="lg_target">Target</span></span>
+        <span class="lg"><span class="sw" style="background:#f4c450"></span><span data-i18n="lg_playing">Playing</span></span>
+        <span class="lg"><span class="sw" style="background:linear-gradient(180deg,#fcf2d2,#df9f20)"></span><span data-i18n="lg_target">Target</span></span>
         <span class="lg lg-grade"><span class="sw" style="background:#a9d3ad">✓</span><span data-i18n="lg_right">Right</span></span>
         <span class="lg lg-grade"><span class="sw" style="background:#e3a487">✗</span><span data-i18n="lg_wrong">Wrong</span></span>
         <span class="lg"><span class="sw" style="background:#a9c6ec"></span><span data-i18n="lg_lh">Left hand</span></span>
