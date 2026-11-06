@@ -510,36 +510,105 @@ test('320px phone: no view scrolls sideways and the Explore staff fits its panel
   expect(fit).toBe(true);
 });
 
-test('Explore staff: clefs sit on their lines and the two staves never overlap, whatever is held', async ({ app }) => {
+test('Explore readout keeps the staff still when a long chord is held', async ({ app, page }) => {
+  const chords = [[], [60], [60, 64, 67], [36, 40, 43, 48, 52, 55, 60, 64, 67, 72, 76, 79], [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 101, 102, 103, 104, 105, 106, 107, 108]];
+  for (const viewport of [{ width: 834, height: 1194 }, { width: 360, height: 740 }]) {
+    await page.setViewportSize(viewport);
+    await app.open({ hash: 'explore' });
+    const positions = [];
+    for (const chord of chords) {
+      positions.push(await page.evaluate(chord => {
+        held.clear(); chord.forEach(m => held.add(m)); updateExplore();
+        const staff = $('ex-staff').getBoundingClientRect(), notes = $('ro-notes');
+        return { top: staff.top, readoutHeight: document.querySelector('.readout').getBoundingClientRect().height, clipped: notes.scrollWidth > notes.clientWidth };
+      }, chord));
+    }
+    expect(new Set(positions.map(p => p.top)).size, `${viewport.width}px`).toBe(1);
+    expect(new Set(positions.map(p => p.readoutHeight)).size, `${viewport.width}px`).toBe(1);
+    expect(positions.at(-1).clipped, `${viewport.width}px`).toBe(true);
+  }
+});
+
+test('Explore staff: bass left and treble right in one fixed frame; far notes are named by an arrow; ledgers show on the dark theme', async ({ app }) => {
   const page = await app.open({ hash: 'explore' });
-  const chords = [[], [53], [60], [60, 64, 67], [21, 108], [36, 40, 43, 84, 88, 91], [59, 60, 62, 64, 65], [61, 63, 66, 68, 70], [52, 53, 55, 57, 59, 60, 62, 64]];
+  await page.evaluate(() => { theme = 'dark'; applyTheme(); });
+  const chords = [[], [53], [60], [60, 64, 67], [89], [53, 89], [24, 96], [21, 108], [77, 89], [36, 40, 43, 84, 88, 91], [59, 60, 62, 64, 65],
+    [61, 63, 66, 68, 70], [52, 53, 55, 57, 59, 60, 62, 64], [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 101, 102, 103, 104, 105, 106, 107, 108]];
+  // [drawn, named above, named below] on each staff
+  const expected = {
+    '24,96': { bass: [[24], [96], []], treble: [[96], [], [24]] },
+    '21,108': { bass: [[], [108], [21]], treble: [[], [108], [21]] },
+    '77,89': { bass: [[], [77, 89], []], treble: [[77, 89], [], []] },
+  };
+  let frame;
   for (const c of chords) {
     const r = await page.evaluate(c => {
       drawExploreStaff(c, false);
-      const svg = $('ex-staff').querySelector('svg'), lines = [...svg.querySelectorAll('.ss-line')].map(l => +l.getAttribute('y1'));
-      const m = svg.getScreenCTM().inverse(), clefs = [...svg.querySelectorAll('path.ss-clef')];
+      const svg = $('ex-staff').querySelector('svg'), m = svg.getScreenCTM().inverse();
       const box = el => { const r = el.getBoundingClientRect(), a = new DOMPoint(r.left, r.top).matrixTransform(m), b = new DOMPoint(r.right, r.bottom).matrixTransform(m);
-        return { y: a.y, height: b.y - a.y }; };
-      const staffBox = (i, clef) => { const els = [clefs[i], ...svg.querySelectorAll(`.ss-n[data-clef="${clef}"]`)].map(box);
-        return { top: Math.min(lines[i * 5], ...els.map(b => b.y)), bottom: Math.max(lines[i * 5 + 4], ...els.map(b => b.y + b.height)) }; };
-      const ledgers = [...svg.querySelectorAll('.ss-ledger')].map(l => l.getAttribute('y1'));
-      // Scan a vertical line through the F clef's dots (its right edge) to find where each dot is filled.
-      const f = clefs[1], fm = f.transform.baseVal.consolidate().matrix, fb = f.getBBox(), inv = fm.inverse();
-      const dotX = fm.a * (fb.x + fb.width) + fm.e - 2, dots = [];
-      for (let y = lines[5] - 12; y <= lines[9] + 12; y += 0.25)
-        if (f.isPointInFill(new DOMPoint(dotX, y).matrixTransform(inv))) { const d = dots[dots.length - 1]; d && y - d[1] < 0.5 ? d[1] = y : dots.push([y, y]); }
-      return { treble: staffBox(0, 'treble'), bass: staffBox(1, 'bass'), fLine: lines[6], dots, f3: svg.querySelector('.ss-n[data-midi="53"][data-clef="bass"] ellipse')?.getAttribute('cy'),
-        dupLedgers: ledgers.length - new Set(ledgers).size, height: svg.viewBox.baseVal.height };
+        return { left: a.x, top: a.y, right: b.x, bottom: b.y }; };
+      const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      const staves = {};
+      for (const g of svg.querySelectorAll('.ex-stave')) {
+        const lines = [...g.querySelectorAll('.ss-line')], ledgers = [...g.querySelectorAll('.ss-ledger')], clef = g.querySelector('path.ss-clef');
+        const far = [...g.querySelectorAll('.ex-far')], marks = [clef, ...g.querySelectorAll('.ss-n, .ss-line, .ss-ledger, text:not(.ex-far)')].map(box);
+        const named = arrow => far.filter(tx => tx.textContent.startsWith(arrow)).flatMap(tx => tx.textContent.slice(2).split(' '));
+        // Scan a vertical line through the F clef's dots (its right edge) to find where each dot is filled.
+        const dots = [];
+        if (g.dataset.clef === 'bass') {
+          const fm = clef.transform.baseVal.consolidate().matrix, fb = clef.getBBox(), inv = fm.inverse(), dotX = fm.a * (fb.x + fb.width) + fm.e - 2;
+          for (let y = +lines[0].getAttribute('y1') - 12; y <= +lines[4].getAttribute('y1') + 12; y += 0.25)
+            if (clef.isPointInFill(new DOMPoint(dotX, y).matrixTransform(inv))) { const d = dots[dots.length - 1]; d && y - d[1] < 0.5 ? d[1] = y : dots.push([y, y]); }
+        }
+        staves[g.dataset.clef] = { box: box(g), dots, lines: lines.map(l => ['x1', 'y1', 'x2'].map(a => +l.getAttribute(a))),
+          drawn: [...g.querySelectorAll('.ss-n')].map(n => +n.dataset.midi), up: named('↑'), down: named('↓'),
+          farClash: far.some(tx => marks.some(b => hit(box(tx), b))), dupLedgers: ledgers.length - new Set(ledgers.map(l => l.getAttribute('y1'))).size,
+          ledgerInk: [...new Set(ledgers.map(l => getComputedStyle(l).stroke))], lineInk: getComputedStyle(lines[0]).stroke,
+          f3: g.querySelector('.ss-n[data-midi="53"] ellipse')?.getAttribute('cy') };
+      }
+      const empty = [...svg.children].filter(el => el.matches('text'));
+      return { staves, theme: document.documentElement.dataset.theme, nm: Object.fromEntries(c.map(m => [m, noteName(m, false)])),
+        viewBox: svg.getAttribute('viewBox'), height: svg.getBoundingClientRect().height, wrapHeight: $('ex-staff').getBoundingClientRect().height,
+        clefs: [...svg.querySelectorAll('path.ss-clef')].map(p => p.getAttribute('transform')).join(' '),
+        empty: empty.length, emptyClash: empty.some(tx => [...svg.querySelectorAll('.ex-stave')].some(g => hit(box(tx), box(g)))) };
     }, c);
-    expect(r.treble.bottom, String(c)).toBeLessThan(r.bass.top);
-    expect(r.bass.bottom, String(c)).toBeLessThanOrEqual(r.height);
+    const where = String(c), { bass, treble } = r.staves, n = m => r.nm[m], [, , W, H] = r.viewBox.split(' ').map(Number);
+    frame ??= r;
+    expect(r.theme).toBe('dark');
+    // Nothing moves while you play: the frame, the staff lines and the clefs never depend on what is held.
+    expect(r.viewBox, where).toBe(frame.viewBox);
+    expect(r.height, where).toBe(frame.height);
+    expect(r.wrapHeight, where).toBe(frame.wrapHeight);
+    expect(r.clefs, where).toBe(frame.clefs);
+    expect(bass.lines, where).toEqual(frame.staves.bass.lines);
+    expect(treble.lines, where).toEqual(frame.staves.treble.lines);
+    // Bass on the left and treble on the right, side by side inside the frame.
+    expect(bass.box.right, where).toBeLessThan(treble.box.left);
+    for (const s of [bass, treble]) {
+      expect(s.box.left, where).toBeGreaterThanOrEqual(0);
+      expect(s.box.right, where).toBeLessThanOrEqual(W);
+      expect(s.box.top, where).toBeGreaterThanOrEqual(0);
+      expect(s.box.bottom, where).toBeLessThanOrEqual(H);
+      // Every held note is drawn or named by an arrow, never both, and the arrows clear everything else.
+      expect([...s.drawn.map(n), ...s.up, ...s.down].sort(), where).toEqual(c.map(n).sort());
+      expect(s.farClash, where).toBe(false);
+      expect(s.dupLedgers, where).toBe(0);
+      for (const ink of s.ledgerInk) expect(ink, where).toBe(s.lineInk);
+    }
+    for (const [k, [drawn, up, down]] of Object.entries(expected[where] || {})) {
+      expect(r.staves[k].drawn, where + ' ' + k).toEqual(drawn);
+      expect(r.staves[k].up, where + ' ' + k).toEqual(up.map(n));
+      expect(r.staves[k].down, where + ' ' + k).toEqual(down.map(n));
+    }
     // The F clef's two dots sit in the spaces either side of the F line (fourth from the bottom, where F3 is written).
-    expect(r.dots.length, String(c)).toBe(2);
-    expect(r.dots[0][1], String(c)).toBeLessThan(r.fLine);
-    expect(r.dots[1][0], String(c)).toBeGreaterThan(r.fLine);
-    expect(Math.abs((r.dots[0][1] + r.dots[1][0]) / 2 - r.fLine), String(c)).toBeLessThan(1.5);
-    if (c.includes(53)) expect(+r.f3).toBe(r.fLine);
-    expect(r.dupLedgers, String(c)).toBe(0);
+    const fLine = bass.lines[1][1];
+    expect(bass.dots.length, where).toBe(2);
+    expect(bass.dots[0][1], where).toBeLessThan(fLine);
+    expect(bass.dots[1][0], where).toBeGreaterThan(fLine);
+    expect(Math.abs((bass.dots[0][1] + bass.dots[1][0]) / 2 - fLine), where).toBeLessThan(1.5);
+    if (c.includes(53)) expect(+bass.f3, where).toBe(fLine);
+    expect(r.empty, where).toBe(c.length ? 0 : 1);
+    expect(r.emptyClash, where).toBe(false);
   }
 });
 

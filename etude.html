@@ -212,7 +212,10 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .switch input:focus-visible + .track{outline:2px solid var(--accent); outline-offset:2px}
 
   .readout{display:flex; gap:30px; flex-wrap:wrap; justify-content:center; margin:6px 0}
+  .readout .ro{min-width:0}
+  .readout .ro:first-child{flex:1 1 350px; max-width:520px}
   .ro b{font-family:var(--serif); font-size:26px; font-weight:600; display:block; min-height:32px}
+  #ro-notes{overflow-x:auto; white-space:nowrap; scrollbar-width:thin}
   .ro span{font-size:11px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted)}
 
   /* ---------- explore: sub-tabs + circle of fifths ---------- */
@@ -380,7 +383,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
   .ss-box{fill:none; stroke:none}
   .ss-n .ss-head{fill:var(--staffink); transition:fill .15s}
   .ss-n .ss-head.ss-hollow{fill:none; stroke:var(--staffink); stroke-width:1.7}
-  .ss-n .ss-stem,.ss-n .ss-flag,.ss-n .ss-ledger{stroke:var(--staffink)}
+  .ss-n .ss-stem,.ss-n .ss-flag,.ss-ledger{stroke:var(--staffink)}
   .ss-n[data-s=now] .ss-head{fill:var(--gold)} .ss-n[data-s=now] .ss-stem,.ss-n[data-s=now] .ss-flag{stroke:var(--gold)}
   .ss-n[data-s=now] .ss-head.ss-hollow{fill:none; stroke:var(--gold)}
   .ss-n[data-s=good] .ss-head.ss-hollow{fill:none; stroke:#3c8f57}
@@ -1718,7 +1721,7 @@ if(location.protocol!=='file:'){ const l=document.createElement('link'); l.rel='
           <div class="ro"><b id="ro-roman">—</b><span data-i18n="ro_roman">Roman / degree</span></div>
         </div>
         <div class="ss-wrap" id="ex-staff" role="img" aria-label="Treble and bass clef notation" data-i18n-aria="aria_exstaff"></div>
-        <p class="lede" style="font-size:12px; margin:8px 0 0" data-i18n="ex_staff_hint">The same notes in both clefs — treble above, bass below.</p>
+        <p class="lede" style="font-size:12px; margin:8px 0 0" data-i18n="ex_staff_hint">The same notes in both clefs — bass on the left, treble on the right, as on the keyboard. Notes too high or too low for a staff are named beside an arrow.</p>
         <hr class="rule" />
         <div class="row" style="justify-content:space-between">
           <label class="field ref-field"><span data-i18n="ex_ref">Reference</span>
@@ -2125,7 +2128,7 @@ const STRINGS={
     pr_eyebrow:'Targeted practice', pr_title:'Drill one thing', pr_lede:'Free practice on a single topic — it won’t change your review schedule, daily goal or streak, so grind as much as you like.',
     pr_topic:'Topic', pr_playit:'Play it', pr_byear:'By ear', pr_key:'Key', pr_start:'Start drilling',
     pr_hint:'A focused practice session opens here and uses the keyboard dock below to answer.',
-    ex_staff_hint:'The same notes in both clefs — treble above, bass below.', ex_staff_empty:'Play a note or chord to see it here.', ex_staff_label:'Treble and bass clef notation',
+    ex_staff_hint:'The same notes in both clefs — bass on the left, treble on the right, as on the keyboard. Notes too high or too low for a staff are named beside an arrow.', ex_staff_empty:'Play a note or chord to see it here.', ex_staff_label:'Treble and bass clef notation',
     ex_eyebrow:'Free play', ex_title:'Explore', ex_lede:'Play anything — Étude names what you hold in real time. Open the Circle of fifths tab to hear any key’s scale or chord with fingering for both hands.',
     ro_notes:'Notes held', ro_name:'Interval / Chord', ro_roman:'Roman / degree',
     ex_ref:'Reference', ex_hear:'▶ Hear', ex_show:'Show on keys', ex_keyctx:'Key context', ex_circle:'Circle of fifths — click a key to set the Roman-numeral context & hear its chord',
@@ -2498,7 +2501,7 @@ const STRINGS={
     pr_eyebrow:'Exersare țintită', pr_title:'Exersează un singur lucru', pr_lede:'Exersare liberă pe un singur subiect — nu îți schimbă programul de repetiții, obiectivul zilnic sau seria de zile, așa că exersează cât vrei.',
     pr_topic:'Subiect', pr_playit:'Cântă', pr_byear:'După ureche', pr_key:'Tonalitate', pr_start:'Începe exersarea',
     pr_hint:'O sesiune de exersare se deschide aici și folosește clapele de mai jos pentru răspuns.',
-    ex_staff_hint:'Aceleași note în ambele chei — Sol sus, Fa jos.', ex_staff_empty:'Apasă o notă sau un acord pentru a-l vedea aici.', ex_staff_label:'Note pe portative în cheile Sol și Fa',
+    ex_staff_hint:'Aceleași note în ambele chei — cheia Fa în stânga, cheia Sol în dreapta, ca pe claviatură. Notele prea înalte sau prea joase pentru un portativ sunt scrise lângă o săgeată.', ex_staff_empty:'Apasă o notă sau un acord pentru a-l vedea aici.', ex_staff_label:'Note pe portative în cheile Sol și Fa',
     ex_eyebrow:'Joacă liber', ex_title:'Explorează', ex_lede:'Cântă orice — Étude numește în timp real ce apeși. Deschide fila Cercul cvintelor ca să auzi gama sau acordul oricărei tonalități, cu digitația pentru ambele mâini.',
     ro_notes:'Note apăsate', ro_name:'Interval / Acord', ro_roman:'Roman / treaptă',
     ex_ref:'Referință', ex_hear:'▶ Ascultă', ex_show:'Arată pe clape', ex_keyctx:'Tonalitate', ex_circle:'Cercul cvintelor — apasă o tonalitate pentru cifrajul roman și pentru a-i auzi acordul',
@@ -4617,7 +4620,9 @@ function exploreSequence(events){
     if(e.at===0) paint(); else exploreTimers.push(setTimeout(paint,e.at));
   });
 }
-// Both clefs show the exact sounding octave, without folding notes into range.
+// Bass on the left and treble on the right, as on the keyboard. The frame never changes, so nothing moves while you play: each clef shows
+// the exact sounding octave up to EX_LEDGERS ledger lines, and lists any note further away beside an arrow at its edge.
+const EX_LEDGERS=5;
 function drawExploreStaff(midis,flat){
   const wrap=$('ex-staff'); if(!wrap) return;
   const names=flat?['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B']:['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -4625,21 +4630,19 @@ function drawExploreStaff(midis,flat){
     const name=names[pc(m)], li='CDEFGAB'.indexOf(name[0]), oct=Math.floor(m/12)-1;
     return {m,step:ssStepOf(li,oct),acc:name.slice(1)};
   }).sort((a,b)=>a.step-b.step||a.m-b.m);
-  let body='', cursor=12;
-  const W=520, x=280;
-  ['treble','bass'].forEach(clef=>{
-    const ref=clef==='treble'?30:18, treble=clef==='treble';
-    const ys=pitches.map(p=>48+(ref-p.step)*6);
-    // Reserve room for the clef outline, the notes and the label so nothing can overlap the other staff.
-    const min=Math.min(treble?-14:-2,...ys.map(y=>y-7)), max=Math.max(treble?66:48,...ys.map(y=>y+7));
-    const top=cursor+18-min;
-    body+=`<text class="ss-syl" x="40" y="${cursor+10}">${t(treble?'si_treble':'si_bass')}</text>`;
-    for(let i=0;i<5;i++) body+=`<line class="ss-line" x1="16" y1="${top+i*12}" x2="${W-16}" y2="${top+i*12}" stroke-width="1.2"/>`;
-    body+=srClef(clef,32,top);
+  const W=520, H=234, top=94, room=EX_LEDGERS*12+6;
+  let body='';
+  [['bass',16,250],['treble',270,504]].forEach(([clef,x0,x1])=>{
+    const treble=clef==='treble', ref=treble?30:18, x=x0+146, far={up:[],down:[]};
+    body+=`<g class="ex-stave" data-clef="${clef}"><text class="ss-syl" x="${x0+24}" y="${top-24}">${t(treble?'si_treble':'si_bass')}</text>`;
+    for(let i=0;i<5;i++) body+=`<line class="ss-line" x1="${x0}" y1="${top+i*12}" x2="${x1}" y2="${top+i*12}" stroke-width="1.2"/>`;
+    body+=srClef(clef,x0+16,top);
     // Adjacent pitches use alternating head columns; accidentals have collision-free lanes.
     let prevStep=-Infinity, prevLane=0; const accLanes=[], heads=[];
-    pitches.forEach((p,i)=>{
-      const lane=p.step-prevStep<=1?1-prevLane:0, y=top+ys[i];
+    pitches.forEach(p=>{
+      const y=top+48+(ref-p.step)*6;
+      if(y<top-room||y>top+48+room){ far[y<top?'up':'down'].push(noteName(p.m,flat)); return; }
+      const lane=p.step-prevStep<=1?1-prevLane:0;
       prevStep=p.step; prevLane=lane; heads.push({p,y,lane});
     });
     // One set of ledger lines per chord, wide enough for whichever head columns need them.
@@ -4657,12 +4660,18 @@ function drawExploreStaff(midis,flat){
       }
       body+=`<g class="ss-n" data-midi="${p.m}" data-clef="${clef}"><title>${noteName(p.m,flat)}</title>${accidental}${ssNotehead(x+lane*13,y,4)}</g>`;
     });
-    if(!pitches.length) body+=`<text class="ss-syl" x="${x}" y="${top+28}" style="paint-order:stroke; stroke:var(--card); stroke-width:7px; stroke-linejoin:round">${t('ex_staff_empty')}</text>`;
-    cursor=top+max+16;
+    // Listed far notes shrink rather than spill into the other staff; 7px a character overestimates 11px text.
+    [['up','↑',14],['down','↓',H-6]].forEach(([k,arrow,y])=>{
+      if(!far[k].length) return;
+      const s=`${arrow} ${far[k].join(' ')}`, max=x1-x0-16, est=s.length*7, w=Math.min(est,max), cx=Math.min(Math.max(x,x0+8+w/2),x1-8-w/2);
+      body+=`<text class="ss-syl ex-far" x="${cx}" y="${y}"${est>max?` style="font-size:${(11*max/est).toFixed(1)}px"`:''}>${s}</text>`;
+    });
+    body+='</g>';
   });
+  if(!pitches.length) body+=`<text class="ss-syl" x="${W/2}" y="${top+88}">${t('ex_staff_empty')}</text>`;
   const label=t('ex_staff_label')+(midis.length?': '+midis.map(m=>noteName(m,flat)).join(', '):'');
   wrap.setAttribute('aria-label',label);
-  wrap.innerHTML=`<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${cursor}" width="${W}" height="${cursor}" style="width:100%; height:auto; max-width:700px; margin:auto" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+  wrap.innerHTML=`<svg class="ss-svg" role="img" aria-label="${label}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="width:100%; height:auto; max-width:700px; margin:auto" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 
 function fillRoots(sel,withAll){ sel.innerHTML=''; if(withAll){ const o=document.createElement('option'); o.value='all'; o.textContent=t('all_keys'); sel.appendChild(o); } NOTE_SYS[notation].root.forEach((n,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=n; sel.appendChild(o); }); }
