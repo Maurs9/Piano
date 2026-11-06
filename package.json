@@ -1,0 +1,12 @@
+{
+  "name": "piano-theory-trainer",
+  "private": true,
+  "description": "Étude — piano theory trainer (single-file static app). Tooling here is for tests only; the app itself has no build step.",
+  "scripts": {
+    "serve": "python3 -m http.server 8777",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}
