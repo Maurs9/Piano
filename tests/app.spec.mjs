@@ -91,6 +91,12 @@ test.describe('Settings drawer and Help dialog', () => {
     await page.locator('#settingsBtn').click();
     await expect(page.locator('#drawerClose')).toBeFocused();
     expect(await page.locator('#drawer').evaluate(el => el.inert)).toBe(false);
+    await expect(page.locator('#drawer')).toHaveAttribute('role', 'dialog');
+    await expect(page.locator('#drawer')).toHaveAttribute('aria-modal', 'true');
+    await expect(page.locator('#drawer')).toHaveAttribute('aria-labelledby', 'drawerTitle');
+    for (const selector of ['#skipLink', 'header', 'main', '#dock', 'details.osmd-lic', 'footer']) {
+      expect(await page.locator(selector).evaluate(el => el.inert), selector).toBe(true);
+    }
     // Tab cycles inside the open drawer instead of escaping to the page behind it.
     for (let i = 0; i < 60; i++) {
       await page.keyboard.press('Tab');
@@ -99,6 +105,7 @@ test.describe('Settings drawer and Help dialog', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#settingsBtn')).toBeFocused();
     expect(await page.locator('#drawer').evaluate(el => el.inert)).toBe(true);
+    expect(await page.locator('main').evaluate(el => el.inert)).toBe(false);
 
     await page.locator('#helpBtn').click();
     await expect(page.locator('#helpClose')).toBeFocused();
@@ -114,6 +121,71 @@ test.describe('Settings drawer and Help dialog', () => {
       await page.keyboard.press('Tab');
       const inside = await page.evaluate(() => ['drawer', 'helpBox'].some(id => document.getElementById(id).contains(document.activeElement)));
       expect(inside).toBe(false);
+    }
+  });
+});
+
+test.describe('Navigation accessibility', () => {
+  test('uses navigation semantics and moves focus to each destination', async ({ app }) => {
+    const page = await app.open();
+    expect(await page.locator('#nav').getAttribute('role')).toBeNull();
+
+    await page.locator('#tools button[data-view="read"]').click();
+    await expect(page.locator('#view-read h1')).toBeFocused();
+
+    await page.evaluate(() => show('today'));
+    await page.locator('#whyLink').click();
+    await expect(page.locator('#view-method h1')).toBeFocused();
+
+    await page.evaluate(() => show('learn'));
+    await page.locator('#modeNav button[aria-current="page"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#view-learn h1')).toBeFocused();
+  });
+
+  test('mobile menu follows its opener, focuses an option, and closes with Escape', async ({ app }) => {
+    const page = await app.open();
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.locator('#menuBtn').click();
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#mobileMenu button').nth(1)).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await expect(page.locator('#menuBtn')).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#mobileMenu button[aria-current="page"]')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#mobileMenu')).toBeHidden();
+    await expect(page.locator('#greet-title')).toBeFocused();
+  });
+
+  test('skip link focuses main without changing the route, and supporting text stays readable on phones', async ({ app }) => {
+    const page = await app.open();
+    await page.locator('#skipLink').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('main')).toBeFocused();
+    await expect(page).toHaveURL(/etude\.html#today$/);
+
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 700 });
+      for (const lang of ['en', 'ro']) {
+        await page.evaluate(lang => setLang(lang), lang);
+        const layout = await page.locator('#whyLink').evaluate(link => {
+          const style = getComputedStyle(link), box = link.getBoundingClientRect();
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--accent)';
+          document.body.append(probe);
+          const accent = getComputedStyle(probe).color;
+          probe.remove();
+          return { color: style.color, accent, whiteSpace: style.whiteSpace, width: box.width, height: box.height };
+        });
+        expect(layout.whiteSpace).toBe('nowrap');
+        expect(layout.width).toBeGreaterThan(100);
+        expect(layout.height).toBeLessThan(30);
+        expect(layout.color).toBe(layout.accent);
+      }
     }
   });
 });
