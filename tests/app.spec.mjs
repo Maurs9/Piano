@@ -14,6 +14,17 @@ test('boots and visits every view without uncaught errors', async ({ app }) => {
 });
 
 test.describe('i18n', () => {
+  for (const [lang, wording] of [['en', 'compatible Bluetooth MIDI pianos and keyboards'], ['ro', 'piane și claviaturi compatibile']]) {
+    test(`Bluetooth MIDI description is instrument-neutral (${lang})`, async ({ app }) => {
+      const page = await app.open({ lang });
+      await page.locator('#settingsBtn').click();
+      const hint = page.locator('[data-i18n="set_ble_hint"]');
+      await expect(hint).toBeVisible();
+      await expect(hint).toContainText(wording);
+      await expect(hint).not.toContainText(/Kawai|ES120/i);
+    });
+  }
+
   // `pr_start` used to be defined twice (Practice button and score prompt): the later one won, so the
   // Practice page's "Start drilling" button read "Press Space or ▶ to start".
   for (const [lang, label] of [['en', 'Start drilling'], ['ro', 'Începe exersarea']]) {
